@@ -12,13 +12,17 @@ async function startServer() {
   await connectDB();
 
   // Auto-seed menu if empty
-  const MenuItem = require('./models/MenuItem');
-  const count = await MenuItem.countDocuments();
-  if (count === 0) {
-    console.log('🌱 Menu collection empty. Auto-seeding catalog with soft drinks, energy drinks, water bottles, and cafe menu...');
-    const { fullCatalog } = require('./scripts/menuCatalogData');
-    await MenuItem.insertMany(fullCatalog);
-    console.log(`✅ Auto-seeded ${fullCatalog.length} coastal offerings!`);
+  try {
+    const MenuItem = require('./models/MenuItem');
+    const count = await MenuItem.countDocuments();
+    if (count === 0) {
+      console.log('🌱 Menu collection empty. Auto-seeding catalog with soft drinks, energy drinks, water bottles, and cafe menu...');
+      const { fullCatalog } = require('./scripts/menuCatalogData');
+      await MenuItem.insertMany(fullCatalog);
+      console.log(`✅ Auto-seeded ${fullCatalog.length} coastal offerings!`);
+    }
+  } catch (seedErr) {
+    console.warn(`ℹ️ [AnchorTrack] Initial catalog seeding skipped (Database pending): ${seedErr.message}`);
   }
 
   // Create HTTP server

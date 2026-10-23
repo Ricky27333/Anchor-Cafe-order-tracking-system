@@ -24,13 +24,24 @@ const connectDB = async () => {
     }
   } else {
     console.log('ℹ️ [AnchorTrack DB] Placeholder or missing MONGODB_URI detected.');
-    console.log('⚡ [AnchorTrack DB] Initializing local MongoMemoryServer for instant zero-setup development...');
   }
 
-  // Fallback to MongoMemoryServer so the app runs out-of-the-box smoothly
+  // In Cloud Production (e.g. Render / Heroku / AWS), do not download MongoMemoryServer
+  if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+    console.warn('⚠️ [AnchorTrack DB] Running in cloud environment without MONGODB_URI.');
+    console.log('💡 [AnchorTrack DB] Tip: Add your free MongoDB Atlas MONGODB_URI in Render Dashboard -> Environment Variables for persistent storage.');
+    return null;
+  }
+
+  // Local development fallback to MongoMemoryServer
+  console.log('⚡ [AnchorTrack DB] Initializing local MongoMemoryServer for instant zero-setup development...');
   try {
     const { MongoMemoryServer } = require('mongodb-memory-server');
-    memoryServerInstance = await MongoMemoryServer.create();
+    memoryServerInstance = await MongoMemoryServer.create({
+      binary: {
+        version: '7.0.14'
+      }
+    });
     const memUri = memoryServerInstance.getUri();
 
     const conn = await mongoose.connect(memUri);
@@ -38,8 +49,8 @@ const connectDB = async () => {
     console.log('💡 [AnchorTrack DB] Tip: To connect to cloud MongoDB Atlas, update MONGODB_URI in your .env file.');
     return conn;
   } catch (memErr) {
-    console.error(`❌ [AnchorTrack DB] Fatal Error starting database: ${memErr.message}`);
-    process.exit(1);
+    console.warn(`⚠️ [AnchorTrack DB] Local in-memory database warning: ${memErr.message}`);
+    return null;
   }
 };
 
