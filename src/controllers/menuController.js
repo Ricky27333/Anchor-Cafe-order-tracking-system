@@ -12,19 +12,46 @@ async function getAllMenuItems(req, res) {
     if (category) filter.category = category;
     if (availableOnly === 'true') filter.isAvailable = true;
 
-    let items = await MenuItem.find(filter).sort({ category: 1, sku: 1 });
+    const mongoose = require('mongoose');
+    let items = [];
 
-    // Auto-seed if database is empty or new items added to fullCatalog
-    if ((items.length === 0 || items.length < fullCatalog.length) && !category) {
-      console.log('🌱 Syncing master catalog with latest soft drinks & energy drinks...');
-      for (const catItem of fullCatalog) {
-        await MenuItem.findOneAndUpdate(
-          { sku: catItem.sku },
-          { $set: catItem },
-          { upsert: true, new: true }
-        );
+    // 1. If MongoDB is connected, load from MongoDB
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        items = await MenuItem.find(filter).sort({ category: 1, sku: 1 });
+
+        // Auto-seed if database is empty or new items added to fullCatalog
+        if ((items.length === 0 || items.length < fullCatalog.length) && !category) {
+          console.log('🌱 Syncing master catalog with latest soft drinks & energy drinks...');
+          for (const catItem of fullCatalog) {
+            await MenuItem.findOneAndUpdate(
+              { sku: catItem.sku },
+              { $set: catItem },
+              { upsert: true, new: true }
+            );
+          }
+          items = await MenuItem.find(filter).sort({ category: 1, sku: 1 });
+        }
+      } catch (dbErr) {
+        console.warn('MongoDB query warning:', dbErr.message);
       }
-      items = await MenuItem.find(filter).sort({ category: 1, sku: 1 });
+    }
+
+    // 2. If items still empty (or MongoDB not connected), fallback to fullCatalog immediately!
+    if (!items || items.length === 0) {
+      items = fullCatalog.map(it => ({
+        ...it,
+        _id: it.sku,
+        sellingPrice: it.price || it.sellingPrice || it.baseCost || 0,
+        isAvailable: it.isAvailable !== false
+      }));
+
+      if (category) {
+        items = items.filter(it => it.category === category);
+      }
+      if (availableOnly === 'true') {
+        items = items.filter(it => it.isAvailable !== false);
+      }
     }
 
     // Grouping by category
@@ -43,8 +70,26 @@ async function getAllMenuItems(req, res) {
       items
     });
   } catch (error) {
-    console.error('Error fetching menu items:', error);
-    res.status(500).json({ success: false, message: error.message });
+    console.warn('Serving fallback fullCatalog on error:', error.message);
+    let items = fullCatalog.map(it => ({
+      ...it,
+      _id: it.sku,
+      sellingPrice: it.price || it.sellingPrice || it.baseCost || 0,
+      isAvailable: true
+    }));
+    const grouped = items.reduce((acc, item) => {
+      const cat = item.category;
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(item);
+      return acc;
+    }, {});
+    res.json({
+      success: true,
+      count: items.length,
+      categories: Object.keys(grouped),
+      grouped,
+      items
+    });
   }
 }
 

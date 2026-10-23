@@ -753,7 +753,19 @@ document.addEventListener('DOMContentLoaded', () => {
   function selectTable(tableName) {
     selectedTable = tableName;
     selectedTableDisplay.value = tableName;
-    topActiveTableLabel.textContent = tableName;
+
+    const matched = tablesData.find(t => t.tableNumber === tableName);
+    if (matched && matched.isOccupied && matched.order) {
+      topActiveTableLabel.innerHTML = `${tableName} <span style="font-size: 0.72rem; color: #ffb703; background: rgba(255, 183, 3, 0.18); padding: 2px 7px; border-radius: 10px; font-weight: 700; border: 1px solid rgba(255, 183, 3, 0.3);">Active: ₹${matched.order.finalTotalAmount}</span>`;
+      if (btnFireKotOnly) {
+        btnFireKotOnly.textContent = `➕ Add to ${tableName} Bill`;
+      }
+    } else {
+      topActiveTableLabel.textContent = tableName;
+      if (btnFireKotOnly) {
+        btnFireKotOnly.textContent = '🔥 Fire KOT (Open Tab)';
+      }
+    }
 
     document.querySelectorAll('.table-pill').forEach(btn => {
       if (btn.getAttribute('data-table') === tableName) {
