@@ -1,0 +1,47 @@
+{
+  "name": "anchortrack-cafe",
+  "version": "2.0.0",
+  "description": "Enterprise Order & Payment Tracking System for Anchor Cafe (Ramapuram Beach, Chirala)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "seed": "node src/scripts/seedMenu.js",
+    "test": "jest --runInBand --detectOpenHandles --forceExit"
+  },
+  "keywords": [
+    "pos",
+    "restaurant",
+    "kot",
+    "beach-cafe",
+    "order-tracking",
+    "upi-reconciliation",
+    "mongodb",
+    "socketio"
+  ],
+  "author": "Anchor Cafe Tech Team",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongodb-memory-server": "^9.2.0",
+    "mongoose": "^8.4.1",
+    "morgan": "^1.10.0",
+    "oracledb": "^26.0.0",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 30000
+  }
+}

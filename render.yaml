@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: anchortrack-cafe
+    runtime: node
+    plan: free
+    region: singapore # Closest low-latency region to India (Chirala / Hyderabad)
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: DEFAULT_DAILY_TABLE_CAPACITY
+        value: "9"
+      - key: MONGODB_URI
+        sync: false # Set in Render Dashboard if using cloud MongoDB Atlas
+      - key: ORACLE_USER
+        sync: false # Optional Oracle Cloud / Tunnel user
+      - key: ORACLE_PASSWORD
+        sync: false # Optional Oracle Cloud / Tunnel password
+      - key: ORACLE_CONNECT_STRING
+        sync: false # Optional Oracle Cloud / Tunnel connect string

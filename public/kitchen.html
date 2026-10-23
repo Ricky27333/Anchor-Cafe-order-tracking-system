@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kitchen Display System (KDS / KOT) | Anchor Cafe Chirala</title>
+  <meta name="description" content="Real-time kitchen order ticket display with live Kanban workflow, audio alerts, and station filtering for Anchor Cafe beach operations.">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/kitchen.css">
+</head>
+<body>
+
+  <!-- Top App Navigation -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">🍳</div>
+      <div class="brand-text">
+        <h1>AnchorTrack Kitchen KDS</h1>
+        <p>Ramapuram Beach &bull; Live KOT Dispatch & Production System</p>
+      </div>
+    </div>
+
+    <nav class="header-nav" aria-label="Main Navigation">
+      <a href="/pos" class="nav-link">🛒 POS Terminal</a>
+      <a href="/kitchen" class="nav-link active">🍳 Kitchen KDS</a>
+      <a href="/admin/analytics" class="nav-link">📊 Financial Records</a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="btn-sound-toggle" id="btnSoundToggle">
+        🔊 Sound: ON
+      </button>
+      <span class="status-pill live">Kitchen Gateway Live</span>
+    </div>
+  </header>
+
+  <!-- KDS Layout -->
+  <main class="kitchen-layout">
+    <!-- Toolbar with Station Filters -->
+    <div class="kds-toolbar">
+      <div class="kds-stations-tabs" id="stationTabs">
+        <button class="station-btn active" data-station="all">All Stations 🍳🍹</button>
+        <button class="station-btn" data-station="beverage">Beverage Bar ☕🍹 (Coffee, Mojitos, Shakes)</button>
+        <button class="station-btn" data-station="kitchen">Hot Kitchen 🍟 (Fries, Momos, Wings)</button>
+      </div>
+
+      <div class="kds-meta-stats">
+        <div class="stat-pill-group">
+          <span>Active Orders: <strong id="statActiveCount" style="color: var(--color-gold);">0</strong></span>
+          &bull;
+          <span>Pending: <strong id="statPendingCount" style="color: var(--color-coral);">0</strong></span>
+        </div>
+        <button class="btn-outline" id="btnRefreshKds" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+          🔄 Sync
+        </button>
+      </div>
+    </div>
+
+    <!-- 3-Column Kanban Board -->
+    <section class="kanban-board">
+      
+      <!-- Column 1: New / Pending -->
+      <div class="kanban-col pending">
+        <div class="col-header">
+          <div class="col-header-title">
+            <span style="color: var(--color-coral);">🔴</span>
+            <span>NEW / PENDING</span>
+          </div>
+          <span class="col-counter-badge" id="badgePendingCount">0</span>
+        </div>
+        <div class="cards-scroll-area" id="colPendingCards">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Column 2: In Preparation -->
+      <div class="kanban-col preparing">
+        <div class="col-header">
+          <div class="col-header-title">
+            <span style="color: var(--color-gold);">🟡</span>
+            <span>IN PREPARATION</span>
+          </div>
+          <span class="col-counter-badge" id="badgePreparingCount">0</span>
+        </div>
+        <div class="cards-scroll-area" id="colPreparingCards">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Column 3: Ready for Pickup / Delivery -->
+      <div class="kanban-col ready">
+        <div class="col-header">
+          <div class="col-header-title">
+            <span style="color: var(--color-emerald);">🟢</span>
+            <span>READY / PLATED</span>
+          </div>
+          <span class="col-counter-badge" id="badgeReadyCount">0</span>
+        </div>
+        <div class="cards-scroll-area" id="colReadyCards">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/soundEffects.js"></script>
+  <script src="/js/kitchen.js"></script>
+</body>
+</html>

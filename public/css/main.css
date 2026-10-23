@@ -1,0 +1,409 @@
+/* ==========================================================================
+   ⚓ AnchorTrack Design System & Luxury Coastal Theme
+   Anchor Cafe - Ramapuram Beach, Chirala (Choramandal Coast)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Coastal Color Palette */
+  --color-navy-dark: #0B2545;
+  --color-navy-deep: #06182C;
+  --color-navy-card: #112A4A;
+  --color-navy-surface: #14355F;
+  --color-navy-light: #1D4E89;
+  
+  --color-gold: #C9A86A;
+  --color-gold-hover: #DFBF85;
+  --color-gold-glow: rgba(201, 168, 106, 0.28);
+  --color-gold-light: #F4EBD9;
+
+  --color-foam: #F4EBD9;
+  --color-sand: #FFFDF9;
+  --color-sand-muted: #E2D9C8;
+
+  --color-coral: #EE6C4D;
+  --color-emerald: #2A9D8F;
+  --color-amber: #E76F51;
+  --color-blue-accent: #3A86FF;
+
+  /* Typography */
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-accent: 'Cinzel', serif;
+
+  /* Shadows & Glassmorphism */
+  --glass-bg: rgba(11, 37, 69, 0.78);
+  --glass-border: rgba(201, 168, 106, 0.22);
+  --glass-blur: blur(14px);
+  --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.25);
+  --shadow-elevation: 0 12px 36px rgba(4, 18, 36, 0.45);
+  --shadow-gold: 0 0 25px rgba(201, 168, 106, 0.25);
+
+  /* Layout */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 9999px;
+  --transition-smooth: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Reset & Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-navy-deep);
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(201, 168, 106, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(29, 78, 137, 0.15) 0%, transparent 50%),
+    linear-gradient(180deg, #06182C 0%, #0B2545 100%);
+  background-attachment: fixed;
+  color: var(--color-sand);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Links & Buttons */
+a {
+  color: var(--color-gold);
+  text-decoration: none;
+  transition: var(--transition-smooth);
+}
+a:hover {
+  color: var(--color-gold-hover);
+}
+
+button {
+  font-family: var(--font-heading);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: var(--transition-smooth);
+}
+
+/* Top App Header / Navbar */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(6, 24, 44, 0.88);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.brand-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--color-gold) 0%, #9C783E 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-navy-dark);
+  font-size: 1.4rem;
+  box-shadow: 0 4px 15px rgba(201, 168, 106, 0.35);
+}
+
+.brand-text h1 {
+  font-family: var(--font-accent);
+  font-size: 1.25rem;
+  letter-spacing: 1px;
+  color: var(--color-gold);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.brand-text p {
+  font-size: 0.75rem;
+  color: var(--color-foam);
+  opacity: 0.85;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-foam);
+  background: transparent;
+  border: 1px solid transparent;
+}
+.nav-link:hover {
+  background: rgba(201, 168, 106, 0.12);
+  border-color: var(--glass-border);
+  color: var(--color-gold);
+}
+.nav-link.active {
+  background: linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%);
+  color: var(--color-navy-dark);
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(201, 168, 106, 0.3);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Sound Mute Button */
+.btn-sound-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: var(--color-sand);
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.btn-sound-toggle:hover {
+  background: rgba(201, 168, 106, 0.18);
+  border-color: var(--color-gold);
+}
+
+/* Status Pill */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.status-pill.live {
+  background: rgba(42, 157, 143, 0.2);
+  color: #48CAE4;
+  border: 1px solid rgba(72, 202, 228, 0.3);
+}
+.status-pill.live::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #48CAE4;
+  box-shadow: 0 0 8px #48CAE4;
+  animation: pulseBeacon 1.8s infinite;
+}
+
+@keyframes pulseBeacon {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.3); }
+}
+
+/* Coastal Glass Card */
+.coastal-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevation);
+  transition: var(--transition-smooth);
+}
+.coastal-card:hover {
+  border-color: rgba(201, 168, 106, 0.45);
+  box-shadow: var(--shadow-elevation), var(--shadow-gold);
+}
+
+/* Primary Button */
+.btn-gold {
+  background: linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%);
+  color: var(--color-navy-dark);
+  font-weight: 700;
+  padding: 0.65rem 1.4rem;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 15px rgba(201, 168, 106, 0.35);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.btn-gold:hover {
+  background: linear-gradient(135deg, var(--color-gold-hover) 0%, var(--color-gold) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(201, 168, 106, 0.45);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--color-gold);
+  border: 1px solid var(--color-gold);
+  font-weight: 600;
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.btn-outline:hover {
+  background: rgba(201, 168, 106, 0.15);
+  border-color: var(--color-gold-hover);
+}
+
+/* Pricing Badges */
+.price-display {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.charm-price {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-gold);
+}
+.base-price {
+  font-size: 0.8rem;
+  text-decoration: line-through;
+  opacity: 0.55;
+  color: var(--color-foam);
+}
+.price-tag-rule {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: rgba(201, 168, 106, 0.18);
+  color: var(--color-gold);
+  font-weight: 600;
+}
+
+/* Modal Styling */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 15, 30, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal-content {
+  background: #0B2545;
+  border: 1px solid var(--color-gold);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), var(--shadow-gold);
+  max-width: 500px;
+  width: 100%;
+  overflow: hidden;
+  animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modalScaleUp {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modal-header h3 {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  color: var(--color-gold);
+}
+.modal-close {
+  background: transparent;
+  color: var(--color-foam);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.modal-body {
+  padding: 1.5rem;
+}
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+/* Toast Notifications */
+.toast-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.toast {
+  background: rgba(11, 37, 69, 0.95);
+  border-left: 4px solid var(--color-gold);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-sand);
+  font-size: 0.9rem;
+  animation: slideToast 0.3s ease forwards;
+}
+@keyframes slideToast {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.toast.success { border-left-color: var(--color-emerald); }
+.toast.warning { border-left-color: var(--color-amber); }
+.toast.danger { border-left-color: var(--color-coral); }
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .app-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .header-nav {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+}

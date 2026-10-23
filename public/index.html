@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AnchorTrack | Enterprise Order & Payment Tracking System for Anchor Cafe Chirala</title>
+  <meta name="description" content="AnchorTrack is the cloud-native Order, KOT and Dynamic UPI Payment tracking platform for Anchor Cafe on Ramapuram Beach, Chirala (Choramandal Coast).">
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    .hero-section {
+      position: relative;
+      min-height: 540px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 4rem 1.5rem;
+      background: linear-gradient(180deg, rgba(6, 24, 44, 0.72) 0%, rgba(11, 37, 69, 0.92) 100%),
+                  url('/assets/images/anchor_cafe_hero.jpg') center/cover no-repeat;
+      border-bottom: 1px solid var(--glass-border);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    }
+    .hero-content {
+      max-width: 860px;
+      z-index: 2;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 1rem;
+      border-radius: var(--radius-pill);
+      background: rgba(201, 168, 106, 0.18);
+      border: 1px solid var(--color-gold);
+      color: var(--color-gold);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 1.25rem;
+    }
+    .hero-title {
+      font-family: var(--font-accent);
+      font-size: 3rem;
+      font-weight: 800;
+      color: var(--color-sand);
+      line-height: 1.15;
+      margin-bottom: 1rem;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+    }
+    .hero-title span {
+      color: var(--color-gold);
+    }
+    .hero-subtitle {
+      font-size: 1.15rem;
+      color: var(--color-foam);
+      max-width: 700px;
+      margin: 0 auto 2rem auto;
+      line-height: 1.6;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+    }
+    .hero-cta-group {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    /* System Portals Hub */
+    .portals-section {
+      max-width: 1200px;
+      margin: -3.5rem auto 3rem auto;
+      padding: 0 1.5rem;
+      position: relative;
+      z-index: 10;
+    }
+    .portal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+    }
+    .portal-card {
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      background: rgba(11, 37, 69, 0.88);
+      backdrop-filter: var(--glass-blur);
+      transition: var(--transition-smooth);
+      position: relative;
+      overflow: hidden;
+    }
+    .portal-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--color-gold);
+      transform: scaleX(0);
+      transition: var(--transition-smooth);
+    }
+    .portal-card:hover {
+      transform: translateY(-6px);
+      border-color: var(--color-gold);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), var(--shadow-gold);
+    }
+    .portal-card:hover::before {
+      transform: scaleX(1);
+    }
+    .portal-icon {
+      font-size: 2.4rem;
+      margin-bottom: 1rem;
+    }
+    .portal-title {
+      font-family: var(--font-heading);
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-gold);
+      margin-bottom: 0.5rem;
+    }
+    .portal-desc {
+      font-size: 0.85rem;
+      color: var(--color-foam);
+      opacity: 0.85;
+      line-height: 1.5;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Pricing Engine Showcase */
+    .showcase-section {
+      max-width: 1200px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+    }
+    .section-header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .section-header h2 {
+      font-family: var(--font-accent);
+      font-size: 2.2rem;
+      color: var(--color-gold);
+      margin-bottom: 0.5rem;
+    }
+    .section-header p {
+      color: var(--color-foam);
+      font-size: 0.95rem;
+      max-width: 650px;
+      margin: 0 auto;
+    }
+
+    .rules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+    .rule-card {
+      padding: 1.5rem;
+      border-left: 4px solid var(--color-gold);
+    }
+    .rule-card.authentic {
+      border-left-color: #52B788;
+    }
+    .rule-card.charm {
+      border-left-color: var(--color-coral);
+    }
+    .rule-card h3 {
+      font-family: var(--font-heading);
+      font-size: 1.15rem;
+      color: var(--color-sand);
+      margin-bottom: 0.5rem;
+    }
+    .rule-card p {
+      font-size: 0.85rem;
+      color: var(--color-foam);
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    .app-footer {
+      background: rgba(6, 24, 44, 0.95);
+      border-top: 1px solid var(--glass-border);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      color: var(--color-foam);
+      font-size: 0.85rem;
+    }
+    .app-footer p {
+      margin-bottom: 0.4rem;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top App Navigation -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">⚓</div>
+      <div class="brand-text">
+        <h1>AnchorTrack</h1>
+        <p>Anchor Cafe &bull; Ramapuram Beach, Chirala</p>
+      </div>
+    </div>
+
+    <nav class="header-nav" aria-label="Main Navigation">
+      <a href="/pos" class="nav-link">🛒 POS Terminal</a>
+      <a href="/kitchen" class="nav-link">🍳 Kitchen KDS</a>
+      <a href="/admin/analytics" class="nav-link">📊 Financial Records</a>
+    </nav>
+
+    <div class="header-actions">
+      <span class="status-pill live">System Operational</span>
+    </div>
+  </header>
+
+  <!-- Coastal Hero Banner -->
+  <section class="hero-section">
+    <div class="hero-content">
+      <div class="hero-badge">🏖️ Ramapuram Beach, Chirala &bull; Choramandal Coast</div>
+      <h1 class="hero-title">
+        Enterprise Order, KOT &amp; <span>Payment Tracking</span>
+      </h1>
+      <p class="hero-subtitle">
+        Purpose-built for coastal rush hours. Seamlessly synchronizing beachfront lounger orders, open-air wooden deck tables, kitchen displays, and 100% reconciled UPI QR collections.
+      </p>
+      <div class="hero-cta-group">
+        <a href="/pos" class="btn-gold" style="font-size: 1rem; padding: 0.85rem 1.75rem;">
+          🛒 Launch Waiter &amp; Cashier POS
+        </a>
+        <a href="/kitchen" class="btn-outline" style="font-size: 1rem; padding: 0.85rem 1.75rem;">
+          🍳 Open Kitchen KDS Display
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Portals Navigation Grid -->
+  <section class="portals-section">
+    <div class="portal-grid">
+      
+      <!-- Card 1: POS Terminal -->
+      <div class="portal-card coastal-card">
+        <div>
+          <div class="portal-icon">🛒</div>
+          <h2 class="portal-title">9 Tables POS &amp; Payment</h2>
+          <p class="portal-desc">
+            9-table live floor layout, itemized table orders with unit &amp; total costs, packaged drinking water, soft drinks, energy drinks, and 1-tap PhonePe / GPay / Cash payment confirmation ticks.
+          </p>
+        </div>
+        <a href="/pos" class="btn-gold">Launch POS &amp; 9 Tables &rarr;</a>
+      </div>
+
+      <!-- Card 2: Kitchen KDS -->
+      <div class="portal-card coastal-card">
+        <div>
+          <div class="portal-icon">🍳</div>
+          <h2 class="portal-title">Kitchen KOT Display</h2>
+          <p class="portal-desc">
+            Real-time Kanban board syncing incoming sand orders, countdown elapsed timers, station filtering (Bar vs Kitchen), and synthesized Web Audio chimes.
+          </p>
+        </div>
+        <a href="/kitchen" class="btn-outline">Open KDS &rarr;</a>
+      </div>
+
+      <!-- Card 3: Raw Material & Store Expense Records -->
+      <div class="portal-card coastal-card">
+        <div>
+          <div class="portal-icon">🛒</div>
+          <h2 class="portal-title">Raw Material &amp; Expense Records</h2>
+          <p class="portal-desc">
+            Track daily and monthly raw material purchases (milk, coffee, ice, packaging) deducted directly from sales with decision insights.
+          </p>
+        </div>
+        <a href="/admin/analytics" class="btn-outline">Manage Expenses &rarr;</a>
+      </div>
+
+      <!-- Card 4: Management Analytics -->
+      <div class="portal-card coastal-card">
+        <div>
+          <div class="portal-icon">📊</div>
+          <h2 class="portal-title">Financial &amp; Z-Report</h2>
+          <p class="portal-desc">
+            MongoDB aggregation analytics tracking Hyderabad/Guntur tourist surges, UPI reconciliation, bestseller velocity, and official day-end closing audits.
+          </p>
+        </div>
+        <a href="/admin/analytics" class="btn-gold">Open Analytics &rarr;</a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Psychological Charm Pricing Engine Showcase -->
+  <section class="showcase-section">
+    <div class="section-header">
+      <h2>Psychological Charm Pricing Engine (.99)</h2>
+      <p>Strategically calibrated to maximize guest perceived value and spend during peak coastal visits.</p>
+    </div>
+
+    <div class="rules-grid">
+      <div class="rule-card authentic coastal-card">
+        <h3>☕ Authentic Traditional Staples (Untouched)</h3>
+        <p>
+          Traditional Filter Coffee (<strong>₹40</strong>), Roasted Black Coffee (<strong>₹40</strong>), Lemon Honey Tea (<strong>₹30</strong>), and Herbal Green Tea (<strong>₹30</strong>) maintain exact authentic coastal pricing with zero markup.
+        </p>
+      </div>
+
+      <div class="rule-card charm coastal-card">
+        <h3>🥤 Food &amp; Cold Beverages (9-Ending Rule)</h3>
+        <p>
+          Base ₹60 &rarr; <strong>₹69</strong> &bull; Base ₹70 &rarr; <strong>₹79</strong> &bull; Base ₹80 &rarr; <strong>₹89</strong> &bull; Base ₹90 &rarr; <strong>₹99</strong> &bull; Base ₹100 &rarr; <strong>₹99</strong> (sub-100 threshold) &bull; Base ₹110 &rarr; <strong>₹119</strong> &bull; Base ₹120 &rarr; <strong>₹129</strong>.
+        </p>
+      </div>
+
+      <div class="rule-card coastal-card">
+        <h3>🏖️ 81+ Master SKU Catalog</h3>
+        <p>
+          Complete coverage of all 4 traditional hot beverages, 13 beach mojitos, 27 signature shakes with 3-variant matrix (Milkshake, Blended, Thickshake), 9 artisanal gelatos, 10 crispy snacks, and beach bonfire/candlelight setups.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p><strong>Anchor Cafe</strong> &bull; Ramapuram Beach, Chirala, Choramandal Coast</p>
+    <p>Direct Beachfront Reception: +91 7702897213 &bull; UPI VPA: anchorcafe@icici</p>
+    <p style="margin-top: 1rem; font-size: 0.75rem; color: var(--color-gold);">
+      Powered by AnchorTrack Cloud &bull; Node.js, Express, MongoDB Atlas, Socket.io
+    </p>
+  </footer>
+
+</body>
+</html>

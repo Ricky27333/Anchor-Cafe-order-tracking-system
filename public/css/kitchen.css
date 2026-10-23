@@ -1,0 +1,267 @@
+/* ==========================================================================
+   ⚓ AnchorTrack Kitchen Display System (KDS / KOT) Styling
+   ========================================================================== */
+
+.kitchen-layout {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 67px);
+  overflow: hidden;
+  background: #041224;
+}
+
+/* KDS Control Toolbar */
+.kds-toolbar {
+  padding: 0.75rem 1.5rem;
+  background: rgba(11, 37, 69, 0.7);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.kds-stations-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+.station-btn {
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--color-foam);
+  transition: var(--transition-smooth);
+}
+.station-btn:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+.station-btn.active {
+  background: linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%);
+  color: var(--color-navy-dark);
+  border-color: var(--color-gold);
+  font-weight: 700;
+}
+
+.kds-meta-stats {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--color-sand);
+}
+.stat-pill-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* Kanban Board Columns */
+.kanban-board {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  padding: 1.25rem;
+  overflow: hidden;
+}
+
+.kanban-col {
+  display: flex;
+  flex-direction: column;
+  background: rgba(11, 37, 69, 0.45);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.col-header {
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(6, 24, 44, 0.8);
+}
+.col-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.col-counter-badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Column Specific Header Accents */
+.kanban-col.pending .col-header {
+  border-top: 4px solid var(--color-coral);
+}
+.kanban-col.pending .col-counter-badge {
+  background: rgba(238, 108, 77, 0.25);
+  color: #FFA585;
+}
+
+.kanban-col.preparing .col-header {
+  border-top: 4px solid var(--color-gold);
+}
+.kanban-col.preparing .col-counter-badge {
+  background: rgba(201, 168, 106, 0.25);
+  color: var(--color-gold);
+}
+
+.kanban-col.ready .col-header {
+  border-top: 4px solid var(--color-emerald);
+}
+.kanban-col.ready .col-counter-badge {
+  background: rgba(42, 157, 143, 0.25);
+  color: #48CAE4;
+}
+
+/* Cards List Inside Column */
+.cards-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.cards-scroll-area::-webkit-scrollbar {
+  width: 5px;
+}
+.cards-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--color-gold);
+  border-radius: 4px;
+}
+
+/* KOT Ticket Card */
+.kot-card {
+  background: #0D2644;
+  border: 1px solid rgba(201, 168, 106, 0.2);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: var(--transition-smooth);
+  animation: cardFadeIn 0.3s ease;
+}
+@keyframes cardFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.kot-card:hover {
+  border-color: var(--color-gold);
+  box-shadow: 0 6px 20px rgba(201, 168, 106, 0.2);
+}
+
+.kot-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.kot-order-num {
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-gold);
+}
+.kot-time-ago {
+  font-size: 0.75rem;
+  color: var(--color-foam);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-pill);
+}
+
+.kot-location-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-sand);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Item List in Ticket */
+.kot-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.kot-items-table tr {
+  border-bottom: 1px dashed rgba(201, 168, 106, 0.15);
+}
+.kot-items-table td {
+  padding: 0.4rem 0.2rem;
+  vertical-align: top;
+}
+.kot-item-qty {
+  font-weight: 800;
+  color: var(--color-gold);
+  width: 28px;
+}
+.kot-item-title {
+  color: var(--color-sand);
+}
+.kot-item-variant {
+  display: inline-block;
+  font-size: 0.7rem;
+  background: rgba(201, 168, 106, 0.2);
+  color: var(--color-gold);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-pill);
+  margin-top: 0.15rem;
+}
+
+/* Action Button inside card */
+.btn-kot-action {
+  width: 100%;
+  padding: 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: var(--transition-smooth);
+}
+.btn-kot-action.start {
+  background: linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%);
+  color: var(--color-navy-dark);
+}
+.btn-kot-action.ready {
+  background: linear-gradient(135deg, var(--color-emerald) 0%, #1B7A6E 100%);
+  color: white;
+}
+.btn-kot-action.served {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-foam);
+  border: 1px solid var(--glass-border);
+}
+.btn-kot-action.served:hover {
+  background: var(--color-gold);
+  color: var(--color-navy-dark);
+}
+
+@media (max-width: 900px) {
+  .kanban-board {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+}

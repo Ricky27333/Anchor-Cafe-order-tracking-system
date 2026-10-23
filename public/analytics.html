@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Financial Records, Daily &amp; Monthly Tracking | AnchorTrack</title>
+  <meta name="description" content="Daily sales tracking, monthly revenue reports, raw material expenditure ledger, profit margins, and day-end closing for Anchor Cafe Ramapuram Beach.">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/analytics.css">
+</head>
+<body>
+
+  <!-- Top App Navigation (Live Tracker Removed) -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">📊</div>
+      <div class="brand-text">
+        <h1>AnchorTrack Financial Records</h1>
+        <p>Ramapuram Beach, Chirala &bull; Daily &amp; Monthly Sales &amp; Raw Material Tracking</p>
+      </div>
+    </div>
+
+    <nav class="header-nav" aria-label="Main Navigation">
+      <a href="/pos" class="nav-link">🛒 POS &amp; Tables</a>
+      <a href="/kitchen" class="nav-link">🍳 Kitchen KDS</a>
+      <a href="/admin/analytics" class="nav-link active">📊 Financial Records</a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="btn-gold" id="btnOpenAddExpenseModal" title="Record raw material purchase (Milk, Coffee, Ice, Packaging)">
+        <span>➕</span> Log Raw Material Expense
+      </button>
+      <button class="btn-outline" id="btnOpenZReport" title="Official Day-End Audit Slip">
+        📜 Day-End Closing (Z-Report)
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Analytics Container -->
+  <main class="analytics-container">
+    
+    <!-- Hero Header with Month Switcher -->
+    <section class="dashboard-hero">
+      <div>
+        <h1>Coastal Financial Dashboard &amp; Decision Records</h1>
+        <p>Ramapuram Beach, Chirala &bull; Track daily sales, raw material expenditures, and net cafe profits</p>
+      </div>
+      <div class="dashboard-actions">
+        <label for="selectMonth" style="font-size: 0.85rem; color: var(--color-foam); font-weight: 600;">Reporting Month:</label>
+        <select id="selectMonth" class="cart-input" style="width: auto; padding: 0.45rem 1rem; font-weight: 700;">
+          <option value="10">October 2026</option>
+          <option value="9">September 2026</option>
+          <option value="8">August 2026</option>
+        </select>
+
+        <div class="date-filter-box" style="display: flex; align-items: center; gap: 0.45rem; background: rgba(0, 0, 0, 0.35); padding: 0.35rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
+          <label for="inputFilterDate" style="font-size: 0.82rem; color: var(--color-gold); font-weight: 700; white-space: nowrap;">📅 Check Specific Date:</label>
+          <input type="date" id="inputFilterDate" class="cart-input" style="width: auto; padding: 0.35rem 0.65rem; font-weight: 700; color: #FFF; background: #0A1626; border: 1px solid var(--color-gold);">
+          <button class="btn-table-action" id="btnClearDateFilter" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; background: rgba(201, 168, 106, 0.2); border-color: var(--color-gold); color: var(--color-gold); font-weight: 700;" title="Clear date and view entire month">Entire Month</button>
+        </div>
+
+        <button class="btn-outline" id="btnRefreshAnalytics" title="Refresh all records">🔄 Refresh</button>
+      </div>
+    </section>
+
+    <!-- Executive Decision & Financial Health Banner -->
+    <section class="decision-card coastal-card" id="decisionBanner">
+      <div class="decision-header">
+        <div class="decision-title-group">
+          <span class="decision-icon">🎯</span>
+          <div>
+            <h3>Managerial Operating Decision &amp; Profit Health</h3>
+            <p id="decisionSubTitle">Monthly synthesis of sales revenue vs raw material procurement costs</p>
+          </div>
+        </div>
+        <div class="decision-badge-pill" id="decisionBadgePill">🟢 Profitable</div>
+      </div>
+      <p class="decision-body-text" id="decisionText">
+        Loading financial analysis and raw material procurement data...
+      </p>
+      <div class="decision-stats-row">
+        <div class="d-stat">
+          <span class="d-label">Monthly Net Profit</span>
+          <span class="d-val text-gold" id="dNetProfit">₹0</span>
+        </div>
+        <div class="d-stat">
+          <span class="d-label">Raw Material Spend</span>
+          <span class="d-val text-coral" id="dMaterialSpend">₹0</span>
+        </div>
+        <div class="d-stat">
+          <span class="d-label">Net Profit Margin</span>
+          <span class="d-val text-emerald" id="dProfitMargin">0%</span>
+        </div>
+        <div class="d-stat">
+          <span class="d-label">Daily Burn Rate</span>
+          <span class="d-val" id="dDailyBurn">₹0/day</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 Core High-Level Metric Cards -->
+    <section class="kpi-grid">
+      <div class="kpi-card sales coastal-card">
+        <span class="kpi-label">Monthly Gross Sales</span>
+        <div class="kpi-value text-gold" id="kpiMonthGross">₹0</div>
+        <span class="kpi-sub" id="kpiMonthGrossSub">Month-to-Date Customer Sales</span>
+      </div>
+
+      <div class="kpi-card expenses coastal-card" style="border-left-color: #EE6C4D;">
+        <span class="kpi-label">Monthly Raw Material Spend</span>
+        <div class="kpi-value text-coral" id="kpiMonthExpenses">₹0</div>
+        <span class="kpi-sub" id="kpiMonthExpensesSub">Milk, Coffee, Ice, Packaging</span>
+      </div>
+
+      <div class="kpi-card profit coastal-card" style="border-left-color: #52B788;">
+        <span class="kpi-label">Monthly Net Profit</span>
+        <div class="kpi-value text-emerald" id="kpiMonthNet">₹0</div>
+        <span class="kpi-sub" id="kpiMonthNetSub">Sales minus Raw Material Costs</span>
+      </div>
+
+      <div class="kpi-card today coastal-card" style="border-left-color: #48CAE4;">
+        <span class="kpi-label">Today's Day Tracking</span>
+        <div class="kpi-value" id="kpiTodayNet">₹0 Net</div>
+        <span class="kpi-sub" id="kpiTodaySub">Sales: ₹0 &bull; Material Spend: ₹0</span>
+      </div>
+    </section>
+
+    <!-- SECTION: Raw Material Expenditure Ledger (What Expenditure I Spend for the Cafe) -->
+    <section class="records-section coastal-card" style="margin-bottom: 2rem;">
+      <div class="card-header-bar">
+        <div>
+          <h2>🛒 Raw Material &amp; Cafe Expenditure Records</h2>
+          <p style="font-size: 0.85rem; color: var(--color-foam); opacity: 0.85; margin-top: 0.2rem;">
+            Record purchases for Milk, Coffee beans, Syrups, Ice, Cups, Produce &amp; Cafe supplies with manual Add, Edit &amp; Delete
+          </p>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+          <button class="btn-gold" id="btnTableAddExpense" style="padding: 0.45rem 1rem; font-size: 0.85rem;">
+            ➕ Add Material Expense
+          </button>
+        </div>
+      </div>
+
+      <!-- Category Filter Pills & Summary -->
+      <div class="expense-filter-bar">
+        <div class="filter-pills" id="expenseCategoryPills">
+          <button class="pill-btn active" data-cat="all">All Purchases (<span id="countAllExp">0</span>)</button>
+          <button class="pill-btn" data-cat="MILK_DAIRY">🥛 Milk &amp; Dairy</button>
+          <button class="pill-btn" data-cat="ICE_GAS">🧊 Ice &amp; Gas</button>
+          <button class="pill-btn" data-cat="BEVERAGE_STOCK">☕ Coffee &amp; Syrups</button>
+          <button class="pill-btn" data-cat="PACKAGING">📦 Packaging &amp; Cups</button>
+          <button class="pill-btn" data-cat="GROCERIES_PRODUCE">🛒 Groceries &amp; Fruit</button>
+          <button class="pill-btn" data-cat="MISC_EXPENSE">🔧 Misc</button>
+        </div>
+        <div class="expense-total-badge">
+          Filtered Spend: <strong id="filteredExpenseTotal">₹0</strong>
+        </div>
+      </div>
+
+      <!-- Raw Material Table -->
+      <div class="table-responsive-container">
+        <table class="data-table" id="rawMaterialTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Material / Item Description</th>
+              <th>Category</th>
+              <th>Amount (₹)</th>
+              <th>Deducted From</th>
+              <th>Notes / Supplier</th>
+              <th style="text-align: right;">Manual Action</th>
+            </tr>
+          </thead>
+          <tbody id="rawMaterialTableBody">
+            <tr>
+              <td colspan="7" style="text-align: center; padding: 2rem; color: var(--color-foam);">
+                Loading raw material expenditure records...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION: Daily Tracking under Monthly Tracking (How Much is a Day) -->
+    <section class="records-section coastal-card" style="margin-bottom: 2rem;">
+      <div class="card-header-bar">
+        <div>
+          <h2>📅 Daily Financial Tracking &amp; Ledger (October 2026)</h2>
+          <p style="font-size: 0.85rem; color: var(--color-foam); opacity: 0.85; margin-top: 0.2rem;">
+            Day-by-day financial breakdown: Gross Sales, Raw Material Spend, Net Operating Profit, and Managerial Decision
+          </p>
+        </div>
+        <span class="badge-gold" id="dailyTrackingMonthBadge">Month: October 2026</span>
+      </div>
+
+      <div class="table-responsive-container">
+        <table class="data-table" id="dailyLedgerTable">
+          <thead>
+            <tr>
+              <th>Day &amp; Date</th>
+              <th>Gross Sales (₹)</th>
+              <th>Raw Material Spend (₹)</th>
+              <th>Net Day Profit (₹)</th>
+              <th>Margin (%)</th>
+              <th>Orders</th>
+              <th>Operating Decision Status</th>
+              <th style="text-align: right;">View Day's Purchases</th>
+            </tr>
+          </thead>
+          <tbody id="dailyLedgerTableBody">
+            <tr>
+              <td colspan="8" style="text-align: center; padding: 2rem; color: var(--color-foam);">
+                Loading daily financial tracking ledger...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Revenue Trajectory & Category Breakdown Row -->
+    <div class="analytics-grid-row">
+      <!-- 30-Day Sales Trajectory -->
+      <section class="chart-card coastal-card">
+        <div class="card-header-bar">
+          <h2>Daily Revenue Trend &amp; Weekend Surges</h2>
+          <span style="font-size: 0.8rem; color: var(--color-gold);">Sales Trajectory</span>
+        </div>
+        <div class="chart-wrapper" id="salesChartBars">
+          <!-- Populated by analytics.js -->
+        </div>
+      </section>
+
+      <!-- Category Revenue Split -->
+      <section class="chart-card coastal-card">
+        <div class="card-header-bar">
+          <h2>Sales by Offering Category</h2>
+        </div>
+        <div class="category-bars-list" id="categoryBarsList">
+          <!-- Populated by analytics.js -->
+        </div>
+      </section>
+    </div>
+
+    <!-- Top 10 Bestselling Items Table -->
+    <section class="bestsellers-card coastal-card">
+      <div class="card-header-bar">
+        <h2>Top 10 Bestselling Items (Monthly Velocity)</h2>
+        <span style="font-size: 0.8rem; color: var(--color-sand-muted);">Ranked by Quantity Sold</span>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Item Name</th>
+            <th>Category</th>
+            <th>Units Sold</th>
+            <th>Gross Revenue</th>
+          </tr>
+        </thead>
+        <tbody id="bestsellersTableBody">
+          <!-- Populated by analytics.js -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <!-- MODAL 1: Add / Edit Raw Material Expense Modal (Manual Update Option) -->
+  <div class="modal-overlay" id="manualExpenseModal">
+    <div class="modal-content" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 id="modalExpenseTitle">➕ Log Raw Material Expense</h3>
+        <button class="modal-close" id="btnCloseExpenseModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="inputEditExpenseId">
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="inputExpTitle" style="font-weight: 700; display: block; margin-bottom: 0.35rem; color: var(--color-gold);">
+            Raw Material / Purchase Item Name *
+          </label>
+          <input type="text" id="inputExpTitle" class="cart-input" placeholder="e.g. Heritage Full Cream Milk 10L, Coffee Beans 2kg, Ice Blocks" style="width: 100%; padding: 0.65rem;">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div class="form-group">
+            <label for="inputExpCategory" style="font-weight: 700; display: block; margin-bottom: 0.35rem; color: var(--color-gold);">
+              Category / Raw Material Type *
+            </label>
+            <input type="text" id="inputExpCategory" list="categoryOptionsList" class="cart-input" placeholder="Type or select category..." style="width: 100%; padding: 0.65rem;" autocomplete="off">
+            <datalist id="categoryOptionsList">
+              <option value="Milk &amp; Dairy">
+              <option value="Ice &amp; Cold Storage">
+              <option value="Coffee &amp; Syrups">
+              <option value="Packaging &amp; Cups">
+              <option value="Groceries &amp; Fruit">
+              <option value="Bakery, Bread &amp; Buns">
+              <option value="Cooking Oil &amp; Spices">
+              <option value="Sauces &amp; Spreads">
+              <option value="Soft Drinks Stock">
+              <option value="Cleaning &amp; Maintenance">
+              <option value="Staff Petty Cash">
+              <option value="Misc Supplies">
+            </datalist>
+            <span style="font-size: 0.72rem; color: var(--color-foam); opacity: 0.8; display: block; margin-top: 0.2rem;">
+              ℹ️ Click arrow to select, or freely type any custom material type
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label for="inputExpAmount" style="font-weight: 700; display: block; margin-bottom: 0.35rem; color: var(--color-gold);">
+              Amount Spent (₹) *
+            </label>
+            <input type="number" id="inputExpAmount" class="cart-input" placeholder="e.g. 270" min="1" step="0.5" style="width: 100%; padding: 0.65rem; font-weight: bold; font-size: 1.1rem;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div class="form-group">
+            <label for="inputExpDate" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">
+              Purchase Date *
+            </label>
+            <input type="date" id="inputExpDate" class="cart-input" style="width: 100%; padding: 0.65rem;">
+          </div>
+
+          <div class="form-group">
+            <label for="selectExpDeductedFrom" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">
+              Deducted From *
+            </label>
+            <select id="selectExpDeductedFrom" class="cart-input" style="width: 100%; padding: 0.65rem;">
+              <option value="TODAYS_SALES">Today's Sales Cash</option>
+              <option value="YESTERDAYS_SALES">Yesterday's Reserve</option>
+              <option value="PETTY_CASH">Petty Cash / Owner Capital</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="inputExpNotes" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">
+            Vendor / Receipt Notes (Optional)
+          </label>
+          <input type="text" id="inputExpNotes" class="cart-input" placeholder="e.g. Bought from Chirala Market, Bill #492" style="width: 100%; padding: 0.65rem;">
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button class="btn-outline" id="btnCancelExpenseModal">Cancel</button>
+        <button class="btn-gold" id="btnSaveExpenseRecord">💾 Save Expense Record</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Day-End Closing Z-Report Modal -->
+  <div class="modal-overlay" id="zReportModal">
+    <div class="modal-content" style="max-width: 580px;">
+      <div class="modal-header">
+        <h3>Official Day-End Z-Report Audit</h3>
+        <button class="modal-close" id="btnCloseZModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="z-report-paper" id="printableZReport">
+          <div class="z-header">
+            <h2>ANCHOR CAFE</h2>
+            <div>Ramapuram Beach, Chirala (Choramandal Coast)</div>
+            <div>Phone: +91 7702897213</div>
+            <div style="margin-top: 0.35rem; font-weight: bold;">*** OFFICIAL DAY-END CLOSING (Z-REPORT) ***</div>
+            <div id="zDatePrint">Date: 2026-10-23</div>
+          </div>
+          <hr>
+          <div class="z-row"><span>Total Orders:</span><span id="zTotalOrders">0</span></div>
+          <div class="z-row"><span>Completed Orders:</span><span id="zCompletedOrders">0</span></div>
+          <div class="z-row"><span>Cancelled Orders:</span><span id="zCancelledOrders">0</span></div>
+          <hr>
+          <div class="z-row"><span>Gross Sales:</span><span id="zGrossSales">₹0.00</span></div>
+          <div class="z-row text-coral"><span>Raw Material Spend:</span><span id="zMaterialExpenses">₹0.00</span></div>
+          <div class="z-row bold text-emerald"><span>NET OPERATING PROFIT:</span><span id="zNetRevenue">₹0.00</span></div>
+          <hr>
+          <div style="font-weight: bold; margin-bottom: 0.25rem;">PAYMENT CHANNELS:</div>
+          <div class="z-row"><span>UPI QR (PhonePe/GPay):</span><span id="zUpiRev">₹0.00</span></div>
+          <div class="z-row"><span>POS Cards:</span><span id="zCardRev">₹0.00</span></div>
+          <div class="z-row"><span>Cash Expected:</span><span id="zCashRev">₹0.00</span></div>
+          <hr>
+          <div style="margin-top: 0.5rem;">
+            <label for="inputClosingCash" style="font-weight: bold; display: block; margin-bottom: 0.2rem;">
+              Physical Cash Counted in Drawer (₹):
+            </label>
+            <input type="number" id="inputClosingCash" class="cart-input" style="background: #fff; color: #000; border: 1px solid #999; font-size: 1.1rem; padding: 0.5rem; width: 100%;" placeholder="Counted cash">
+          </div>
+          <div class="z-row bold" style="margin-top: 0.5rem; color: #B22222;">
+            <span>Cash Discrepancy:</span>
+            <span id="zCashDiscrepancy">₹0.00</span>
+          </div>
+          <div style="margin-top: 0.5rem;">
+            <label for="inputZNotes" style="font-weight: bold; display: block; margin-bottom: 0.2rem;">Audit Notes:</label>
+            <textarea id="inputZNotes" class="cart-input" style="background: #fff; color: #000; border: 1px solid #999; width: 100%; height: 50px;" placeholder="e.g. Hyderabad weekend evening surge, no discrepancies"></textarea>
+          </div>
+          <hr>
+          <div style="text-align: center; font-size: 0.75rem;">
+            Audit locked in MongoDB Atlas &bull; Verified by Cashier Counter 1
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-outline" id="btnPrintReceipt">🖨️ Print Slip</button>
+        <button class="btn-gold" id="btnConfirmCloseDay">Lock &amp; Close Books</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/analytics.js"></script>
+</body>
+</html>

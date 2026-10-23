@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Beach Order Tracker | Anchor Cafe Chirala</title>
+  <meta name="description" content="Track your Anchor Cafe coastal order from kitchen brewing to beach lounger delivery in real time with our 4-step live tracker.">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/track.css">
+</head>
+<body>
+
+  <!-- Top App Navigation -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">⚓</div>
+      <div class="brand-text">
+        <h1>AnchorTrack Live</h1>
+        <p>Ramapuram Beach, Chirala &bull; Customer Service Tracker</p>
+      </div>
+    </div>
+
+    <nav class="header-nav" aria-label="Main Navigation">
+      <a href="/pos" class="nav-link">🛒 POS Terminal</a>
+      <a href="/kitchen" class="nav-link">🍳 Kitchen KDS</a>
+      <a href="/track" class="nav-link active">📍 Live Tracker</a>
+      <a href="/admin/analytics" class="nav-link">📊 Analytics & Closing</a>
+    </nav>
+
+    <div class="header-actions">
+      <span class="status-pill live">Live Tracking</span>
+    </div>
+  </header>
+
+  <!-- Tracker Content -->
+  <main class="tracker-wrapper">
+    <div class="tracker-header-hero">
+      <h1>Beach Table & Sand Order Tracker</h1>
+      <p>Watch your filter coffee, artisanal shakes, and crispy bites as they make their way to your lounger.</p>
+    </div>
+
+    <!-- Order Lookup Bar -->
+    <section class="order-lookup-card coastal-card">
+      <input type="text" id="orderInput" placeholder="Enter Order Number e.g. AC-20261022-0001">
+      <button class="btn-gold" id="btnTrackOrder">Track Order</button>
+    </section>
+
+    <!-- Tracking Container (Hidden until loaded) -->
+    <div id="trackingView" style="display: none;">
+      
+      <!-- Stepper Progress Card -->
+      <section class="stepper-card coastal-card">
+        <div class="stepper-header">
+          <div>
+            <span class="order-pill-tag" id="displayOrderNum">AC-20261022-0001</span>
+            <div style="font-size: 0.85rem; color: var(--color-foam); margin-top: 0.2rem;" id="displayLocation">
+              Delivering to: Deck Table 4
+            </div>
+          </div>
+          <span class="estimated-pill" id="displayEstimatedTime">Est. 10 mins</span>
+        </div>
+
+        <!-- 4-Step Animated Stepper -->
+        <div class="stepper-steps-container">
+          <!-- Step 1 -->
+          <div class="step-node" id="stepNode1">
+            <div class="step-circle">☕</div>
+            <div class="step-content">
+              <h3 class="step-title">1. Order Placed & Confirmed</h3>
+              <p class="step-desc">Your order is logged into the beach register and forwarded to the kitchen.</p>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="step-node" id="stepNode2">
+            <div class="step-circle">🍳</div>
+            <div class="step-content">
+              <h3 class="step-title">2. Kitchen Brewing & Frying</h3>
+              <p class="step-desc">Baristas & chefs are churning shakes, brewing decoction, and tossing crispy bites.</p>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step-node" id="stepNode3">
+            <div class="step-circle">🛎️</div>
+            <div class="step-content">
+              <h3 class="step-title">3. Quality Plated & Ready</h3>
+              <p class="step-desc">Your items are inspected, garnished, and queued for beach runner dispatch.</p>
+            </div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="step-node" id="stepNode4">
+            <div class="step-circle">🌊</div>
+            <div class="step-content">
+              <h3 class="step-title">4. Delivered to Beach Sand / Handed at Deck</h3>
+              <p class="step-desc">Enjoy your fresh coastal refreshment directly on Ramapuram Beach!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Order Items Details Card -->
+      <section class="order-details-card coastal-card">
+        <h3 class="details-title">Order Items & Charm Pricing</h3>
+        <table class="details-table">
+          <tbody id="displayItemsTable">
+            <!-- Populated dynamically -->
+          </tbody>
+        </table>
+        <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 1.15rem; color: var(--color-gold); border-top: 1px dashed var(--glass-border); padding-top: 0.75rem;">
+          <span>Final Total</span>
+          <span id="displayTotalAmount">₹0</span>
+        </div>
+      </section>
+
+      <!-- Reception WhatsApp Help Card -->
+      <section class="reception-help-card coastal-card">
+        <div>
+          <div style="font-weight: 700; color: #52B788;">Need assistance or extra ice?</div>
+          <p style="font-size: 0.8rem; color: var(--color-foam); opacity: 0.85;">
+            Our beachfront managers are directly on call to assist you.
+          </p>
+        </div>
+        <a id="btnWhatsAppHelp" href="https://wa.me/917702897213" target="_blank" rel="noopener noreferrer" class="btn-whatsapp-chat">
+          💬 Chat Reception (7702897213)
+        </a>
+      </section>
+
+    </div>
+
+    <!-- Empty State -->
+    <div id="trackerEmptyState" style="text-align: center; padding: 4rem 1rem; color: var(--color-foam); opacity: 0.6;">
+      <div style="font-size: 3rem; margin-bottom: 0.75rem;">🧭</div>
+      <h2>Awaiting Order Number</h2>
+      <p>Enter your Anchor Cafe order number above (e.g. AC-20261022-0001) to begin live coastal tracking.</p>
+    </div>
+  </main>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/soundEffects.js"></script>
+  <script src="/js/track.js"></script>
+</body>
+</html>
