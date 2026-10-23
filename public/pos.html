@@ -181,6 +181,17 @@
           <input type="text" id="selectedTableDisplay" class="cart-input" value="Table 1" readonly style="font-weight: 700; color: var(--color-gold); text-align: center;">
           <input type="text" id="guestNameInput" class="cart-input" placeholder="Guest / Phone (Optional)" value="Guest">
         </div>
+
+        <!-- Active Table Append / Reorder Notification Banner -->
+        <div id="cartActiveTableNotice" style="display: none; padding: 0.5rem 0.75rem; margin-top: 0.45rem; border-radius: var(--radius-sm); font-size: 0.8rem; background: rgba(82, 183, 136, 0.15); border: 1px solid #52B788; color: #74C69D; line-height: 1.35;">
+          <div style="font-weight: 700; display: flex; align-items: center; justify-content: space-between;">
+            <span id="activeTableNoticeTitle">🔔 Table Active Bill</span>
+            <span id="activeTableNoticeBill" style="color: var(--color-gold); font-size: 0.85rem; font-weight: 800;">₹0</span>
+          </div>
+          <div id="activeTableNoticeText" style="font-size: 0.72rem; color: var(--color-foam); opacity: 0.9; margin-top: 0.2rem;">
+            Items added below will append directly to this table's running bill.
+          </div>
+        </div>
       </div>
 
       <!-- Cart Items List -->

@@ -6,21 +6,20 @@ const { fullCatalog } = require('../scripts/menuCatalogData');
  */
 async function getAllMenuItems(req, res) {
   try {
-    const { category, availableOnly } = req.query;
-    const filter = {};
-
-    if (category) filter.category = category;
-    if (availableOnly === 'true') filter.isAvailable = true;
-
     const mongoose = require('mongoose');
+    const { category, availableOnly } = req.query;
+
     let items = [];
 
-    // 1. If MongoDB is connected, load from MongoDB
+    // If MongoDB is active and connected, fetch from DB
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       try {
-        items = await MenuItem.find(filter).sort({ category: 1, sku: 1 });
+        const filter = {};
+        if (category) filter.category = category;
+        if (availableOnly === 'true') filter.isAvailable = true;
 
-        // Auto-seed if database is empty or new items added to fullCatalog
+        items = await MenuItem.find(filter).sort({ category: 1, sku: 1 }).maxTimeMS(2000);
+
         if ((items.length === 0 || items.length < fullCatalog.length) && !category) {
           console.log('🌱 Syncing master catalog with latest soft drinks & energy drinks...');
           for (const catItem of fullCatalog) {
@@ -33,24 +32,21 @@ async function getAllMenuItems(req, res) {
           items = await MenuItem.find(filter).sort({ category: 1, sku: 1 });
         }
       } catch (dbErr) {
-        console.warn('MongoDB query warning:', dbErr.message);
+        console.warn('⚠️ MongoDB query skipped, using master catalog fallback:', dbErr.message);
+        items = [];
       }
     }
 
-    // 2. If items still empty (or MongoDB not connected), fallback to fullCatalog immediately!
+    // High-availability fallback: if DB returned nothing or is offline, serve directly from fullCatalog
     if (!items || items.length === 0) {
       items = fullCatalog.map(it => ({
         ...it,
         _id: it.sku,
-        sellingPrice: it.price || it.sellingPrice || it.baseCost || 0,
-        isAvailable: it.isAvailable !== false
+        isAvailable: true
       }));
 
       if (category) {
         items = items.filter(it => it.category === category);
-      }
-      if (availableOnly === 'true') {
-        items = items.filter(it => it.isAvailable !== false);
       }
     }
 
@@ -70,25 +66,20 @@ async function getAllMenuItems(req, res) {
       items
     });
   } catch (error) {
-    console.warn('Serving fallback fullCatalog on error:', error.message);
-    let items = fullCatalog.map(it => ({
-      ...it,
-      _id: it.sku,
-      sellingPrice: it.price || it.sellingPrice || it.baseCost || 0,
-      isAvailable: true
-    }));
-    const grouped = items.reduce((acc, item) => {
+    console.error('Error fetching menu items, falling back to fullCatalog:', error.message);
+    const fallbackGrouped = fullCatalog.reduce((acc, item) => {
       const cat = item.category;
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(item);
       return acc;
     }, {});
+
     res.json({
       success: true,
-      count: items.length,
-      categories: Object.keys(grouped),
-      grouped,
-      items
+      count: fullCatalog.length,
+      categories: Object.keys(fallbackGrouped),
+      grouped: fallbackGrouped,
+      items: fullCatalog
     });
   }
 }

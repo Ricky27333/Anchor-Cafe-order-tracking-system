@@ -1,11 +1,6 @@
 const Order = require('../models/Order');
 const { emitOrderCreated, emitStatusChange } = require('../sockets/socketHandler');
 const { syncOrderToOracle, syncPaymentToOracle } = require('../services/oracleSyncService');
-const mongoose = require('mongoose');
-
-// Resilient in-memory storage fallback when persistent cloud DB is connecting or disconnected
-const inMemoryOrders = [];
-let inMemoryTableCount = 9;
 
 /**
  * Generate sequential order number for today (e.g. AC-20261022-0001)
@@ -17,20 +12,12 @@ async function generateOrderNumber() {
   const day = String(now.getDate()).padStart(2, '0');
   const datePrefix = `${year}${month}${day}`;
 
-  let countToday = 0;
-  if (mongoose.connection && mongoose.connection.readyState === 1) {
-    try {
-      const startOfDay = new Date(year, now.getMonth(), now.getDate(), 0, 0, 0);
-      const endOfDay = new Date(year, now.getMonth(), now.getDate(), 23, 59, 59);
-      countToday = await Order.countDocuments({
-        createdAt: { $gte: startOfDay, $lte: endOfDay }
-      });
-    } catch (e) {
-      countToday = inMemoryOrders.length;
-    }
-  } else {
-    countToday = inMemoryOrders.length;
-  }
+  const startOfDay = new Date(year, now.getMonth(), now.getDate(), 0, 0, 0);
+  const endOfDay = new Date(year, now.getMonth(), now.getDate(), 23, 59, 59);
+
+  const countToday = await Order.countDocuments({
+    createdAt: { $gte: startOfDay, $lte: endOfDay }
+  });
 
   const sequence = countToday + 1;
   const formattedSeq = String(sequence).padStart(4, '0');
@@ -89,67 +76,54 @@ async function createOrder(req, res) {
       };
     });
 
-    // Check if tableNumber is active and append requested (or auto-append if table is already active)
-    let existingOrder = null;
-    if (targetTable && targetTable !== 'Takeaway') {
-      if (mongoose.connection && mongoose.connection.readyState === 1) {
-        try {
-          existingOrder = await Order.findOne({
-            'locationDetails.tableNumber': targetTable,
-            paymentStatus: { $ne: 'PAID' },
-            orderStatus: { $ne: 'CANCELLED' }
-          });
-        } catch (e) {}
-      }
-      if (!existingOrder) {
-        existingOrder = inMemoryOrders.find(o => {
-          const tbl = (o.locationDetails?.tableNumber || '').trim().toLowerCase();
-          return tbl === targetTable.toLowerCase() && 
-                 o.paymentStatus !== 'PAID' && 
-                 o.orderStatus !== 'CANCELLED';
+    if (targetTable && appendToExisting) {
+      const tableRegex = new RegExp(`^${targetTable.trim()}$`, 'i');
+      const existingOrder = await Order.findOne({
+        'locationDetails.tableNumber': { $regex: tableRegex },
+        paymentStatus: { $ne: 'PAID' },
+        orderStatus: { $ne: 'CANCELLED' }
+      });
+
+      if (existingOrder) {
+        validatedItems.forEach(it => {
+          const matchIdx = existingOrder.items.findIndex(existing => 
+            existing.title === it.title && existing.variant === it.variant
+          );
+          if (matchIdx > -1) {
+            existingOrder.items[matchIdx].quantity += it.quantity;
+            existingOrder.items[matchIdx].subtotal = existingOrder.items[matchIdx].quantity * existingOrder.items[matchIdx].unitPrice;
+          } else {
+            existingOrder.items.push(it);
+          }
+        });
+
+        // Recalculate full order totals
+        let newSubtotal = 0;
+        let newItemCount = 0;
+        existingOrder.items.forEach(it => {
+          newSubtotal += (it.subtotal || (it.unitPrice * it.quantity));
+          newItemCount += (Number(it.quantity) || 1);
+        });
+
+        existingOrder.subtotalAmount = newSubtotal;
+        existingOrder.totalItemCount = newItemCount;
+        existingOrder.finalTotalAmount = Math.max(0, newSubtotal - (Number(existingOrder.discountAmount) || 0));
+
+        if (paymentStatus === 'PAID') {
+          existingOrder.paymentStatus = 'PAID';
+          existingOrder.paymentMethod = paymentMethod;
+        }
+
+        const updatedOrder = await existingOrder.save();
+        emitOrderCreated(updatedOrder);
+        syncOrderToOracle(updatedOrder).catch(() => {});
+
+        return res.status(200).json({
+          success: true,
+          message: `Added items to ${targetTable} running order (${updatedOrder.orderNumber})! New Total: ₹${updatedOrder.finalTotalAmount}`,
+          order: updatedOrder
         });
       }
-    }
-
-    if (existingOrder) {
-      // Append or merge new items
-      validatedItems.forEach(it => {
-        const matchIdx = existingOrder.items.findIndex(existing => 
-          existing.title === it.title && existing.variant === it.variant
-        );
-        if (matchIdx > -1) {
-          existingOrder.items[matchIdx].quantity += it.quantity;
-          existingOrder.items[matchIdx].subtotal = existingOrder.items[matchIdx].quantity * existingOrder.items[matchIdx].unitPrice;
-        } else {
-          existingOrder.items.push(it);
-        }
-      });
-
-      // Recalculate bill totals
-      existingOrder.totalItemCount = existingOrder.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
-      existingOrder.subtotalAmount = existingOrder.items.reduce((sum, it) => sum + (it.subtotal || (it.unitPrice * it.quantity)), 0);
-      const discount = Number(existingOrder.discountAmount) || 0;
-      existingOrder.finalTotalAmount = Math.max(0, existingOrder.subtotalAmount - discount);
-      if (kitchenNotes) {
-        existingOrder.kitchenNotes = existingOrder.kitchenNotes ? `${existingOrder.kitchenNotes} | ${kitchenNotes}` : kitchenNotes;
-      }
-      existingOrder.orderStatus = 'PENDING'; // Notify kitchen for the newly added items
-
-      let updatedOrder = existingOrder;
-      if (mongoose.connection && mongoose.connection.readyState === 1 && typeof existingOrder.save === 'function') {
-        try {
-          updatedOrder = await existingOrder.save();
-        } catch (err) {}
-      }
-
-      emitOrderCreated(updatedOrder);
-      syncOrderToOracle(updatedOrder).catch(() => {});
-
-      return res.status(200).json({
-        success: true,
-        message: `Added ${validatedItems.length} new item(s) to ${targetTable} running order (${updatedOrder.orderNumber})! Total: ₹${updatedOrder.finalTotalAmount}`,
-        order: updatedOrder
-      });
     }
 
     const finalTotalAmount = Math.max(0, subtotalAmount - (Number(discountAmount) || 0));
@@ -179,20 +153,7 @@ async function createOrder(req, res) {
       kitchenNotes
     });
 
-    let savedOrder;
-    if (mongoose.connection && mongoose.connection.readyState === 1) {
-      try {
-        savedOrder = await newOrder.save();
-      } catch (saveErr) {
-        savedOrder = newOrder.toObject ? newOrder.toObject() : newOrder;
-        savedOrder._id = savedOrder._id || orderNumber;
-        inMemoryOrders.push(savedOrder);
-      }
-    } else {
-      savedOrder = newOrder.toObject ? newOrder.toObject() : newOrder;
-      savedOrder._id = savedOrder._id || orderNumber;
-      inMemoryOrders.push(savedOrder);
-    }
+    const savedOrder = await newOrder.save();
     syncOrderToOracle(savedOrder).catch(() => {});
 
     // If order was marked as PAID immediately at checkout, record payment transaction
@@ -217,10 +178,7 @@ async function createOrder(req, res) {
           status: 'SUCCESS',
           processedBy: cashierUser || 'Counter 1'
         });
-
-        if (mongoose.connection && mongoose.connection.readyState === 1) {
-          try { await payment.save(); } catch (pErr) {}
-        }
+        await payment.save();
         syncPaymentToOracle(payment).catch(() => {});
 
         const { emitPaymentRecorded } = require('../sockets/socketHandler');
@@ -424,17 +382,18 @@ async function updateOrderStatus(req, res) {
 const CafeSetting = require('../models/CafeSetting');
 
 async function getConfiguredTableCount() {
-  if (mongoose.connection && mongoose.connection.readyState === 1) {
-    try {
-      const setting = await CafeSetting.findOne({ key: 'table_count' });
+  try {
+    const mongoose = require('mongoose');
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const setting = await CafeSetting.findOne({ key: 'table_count' }).maxTimeMS(1000);
       if (setting && typeof setting.value === 'number' && setting.value > 0) {
         return setting.value;
       }
-    } catch (err) {
-      console.error('Error reading table_count setting:', err);
     }
+  } catch (err) {
+    // Fall back to default
   }
-  return inMemoryTableCount || 9; // Default 9 tables
+  return 9; // Default 9 tables
 }
 
 /**
@@ -447,17 +406,11 @@ async function increaseTableCount(req, res) {
       return res.status(400).json({ success: false, message: 'Maximum table limit (50) reached.' });
     }
     const newCount = currentCount + 1;
-    inMemoryTableCount = newCount;
-
-    if (mongoose.connection && mongoose.connection.readyState === 1) {
-      try {
-        await CafeSetting.findOneAndUpdate(
-          { key: 'table_count' },
-          { key: 'table_count', value: newCount, description: 'Active dining tables capacity' },
-          { upsert: true, new: true }
-        );
-      } catch (e) {}
-    }
+    await CafeSetting.findOneAndUpdate(
+      { key: 'table_count' },
+      { key: 'table_count', value: newCount, description: 'Active dining tables capacity' },
+      { upsert: true, new: true }
+    );
 
     const { getIO } = require('../sockets/socketHandler');
     const io = getIO();
@@ -488,16 +441,10 @@ async function decreaseTableCount(req, res) {
 
     // Check if highest table is currently occupied
     const highestTableLabel = `Table ${currentCount}`;
-    let activeOrders = inMemoryOrders;
-
-    if (mongoose.connection && mongoose.connection.readyState === 1) {
-      try {
-        activeOrders = await Order.find({
-          paymentStatus: { $ne: 'PAID' },
-          orderStatus: { $ne: 'CANCELLED' }
-        });
-      } catch (e) {}
-    }
+    const activeOrders = await Order.find({
+      paymentStatus: { $ne: 'PAID' },
+      orderStatus: { $ne: 'CANCELLED' }
+    });
 
     const activeOrderOnHighest = activeOrders.find(o => {
       const tbl = (o.locationDetails?.tableNumber || '').trim().toLowerCase();
@@ -515,17 +462,11 @@ async function decreaseTableCount(req, res) {
     }
 
     const newCount = currentCount - 1;
-    inMemoryTableCount = newCount;
-
-    if (mongoose.connection && mongoose.connection.readyState === 1) {
-      try {
-        await CafeSetting.findOneAndUpdate(
-          { key: 'table_count' },
-          { key: 'table_count', value: newCount, description: 'Active dining tables capacity' },
-          { upsert: true, new: true }
-        );
-      } catch (e) {}
-    }
+    await CafeSetting.findOneAndUpdate(
+      { key: 'table_count' },
+      { key: 'table_count', value: newCount, description: 'Active dining tables capacity' },
+      { upsert: true, new: true }
+    );
 
     const { getIO } = require('../sockets/socketHandler');
     const io = getIO();
@@ -548,9 +489,10 @@ async function decreaseTableCount(req, res) {
  */
 async function getTablesOverview(req, res) {
   try {
+    const mongoose = require('mongoose');
     const totalTables = await getConfiguredTableCount();
-    let activeOrders = [];
 
+    let activeOrders = [];
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       try {
         activeOrders = await Order.find({
@@ -563,12 +505,10 @@ async function getTablesOverview(req, res) {
               ]
             }
           ]
-        }).sort({ createdAt: -1 });
-      } catch (e) {
-        activeOrders = inMemoryOrders.filter(o => o.orderStatus !== 'CANCELLED' && (o.paymentStatus !== 'PAID' || o.orderStatus !== 'SERVED'));
+        }).sort({ createdAt: -1 }).maxTimeMS(1500);
+      } catch (findErr) {
+        activeOrders = [];
       }
-    } else {
-      activeOrders = inMemoryOrders.filter(o => o.orderStatus !== 'CANCELLED' && (o.paymentStatus !== 'PAID' || o.orderStatus !== 'SERVED'));
     }
 
     const tables = [];
@@ -604,17 +544,7 @@ async function getTablesOverview(req, res) {
       activeTakeaways
     });
   } catch (error) {
-    res.json({
-      success: true,
-      totalTables: 9,
-      tables: Array.from({ length: 9 }, (_, i) => ({
-        tableNumber: `Table ${i + 1}`,
-        tableId: i + 1,
-        isOccupied: false,
-        order: null
-      })),
-      activeTakeaways: []
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 }
 
@@ -625,15 +555,7 @@ async function getTablesOverview(req, res) {
 async function settleTablePayment(req, res) {
   try {
     const { orderId, paymentMethod = 'PHONEPE', cashTendered = 0, changeReturned = 0, notes = '' } = req.body;
-    let order = null;
-    if (mongoose.connection && mongoose.connection.readyState === 1) {
-      try {
-        order = await Order.findById(orderId);
-      } catch (e) {}
-    }
-    if (!order) {
-      order = inMemoryOrders.find(o => String(o._id) === String(orderId) || o.orderNumber === orderId);
-    }
+    const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -658,9 +580,7 @@ async function settleTablePayment(req, res) {
       processedBy: 'Counter 1'
     });
 
-    if (mongoose.connection && mongoose.connection.readyState === 1) {
-      try { await payment.save(); } catch (e) {}
-    }
+    await payment.save();
     syncPaymentToOracle(payment).catch(() => {});
 
     order.paymentStatus = 'PAID';
@@ -668,10 +588,7 @@ async function settleTablePayment(req, res) {
     order.orderStatus = 'SERVED';
     if (!order.timestamps) order.timestamps = {};
     order.timestamps.completedAt = new Date();
-
-    if (mongoose.connection && mongoose.connection.readyState === 1 && typeof order.save === 'function') {
-      try { await order.save(); } catch (e) {}
-    }
+    await order.save();
     syncOrderToOracle(order).catch(() => {});
 
     const { emitPaymentRecorded, emitStatusChange } = require('../sockets/socketHandler');

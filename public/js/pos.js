@@ -92,6 +92,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnClearCart = document.getElementById('btnClearCart');
   const btnConfirmPaymentAndOrder = document.getElementById('btnConfirmPaymentAndOrder');
   const btnFireKotOnly = document.getElementById('btnFireKotOnly');
+  const cartActiveTableNotice = document.getElementById('cartActiveTableNotice');
+  const activeTableNoticeTitle = document.getElementById('activeTableNoticeTitle');
+  const activeTableNoticeBill = document.getElementById('activeTableNoticeBill');
+  const activeTableNoticeText = document.getElementById('activeTableNoticeText');
 
   // Table Detail Modal
   const tableDetailModal = document.getElementById('tableDetailModal');
@@ -185,6 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTablePills();
         renderTablesFloorGrid();
         renderTakeawaysFloorGrid();
+        updateActiveTableNotice();
+        renderCart();
       }
     } catch (err) {
       console.error('Tables fetch error:', err);
@@ -384,9 +390,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Modal: Add more items to table
   if (btnModalAddMoreItems) {
     btnModalAddMoreItems.addEventListener('click', () => {
+      const targetTbl = (modalActiveOrder && modalActiveOrder.locationDetails && modalActiveOrder.locationDetails.tableNumber) 
+        ? modalActiveOrder.locationDetails.tableNumber 
+        : selectedTable;
+      selectTable(targetTbl);
       if (tableDetailModal) tableDetailModal.classList.remove('open');
+      modalActiveOrder = null;
       switchView('catalog');
-      showToast(`Adding items to ${selectedTable}`, 'info');
+      showToast(`Selected ${selectedTable}! Tap any water bottle, drink, or food item to add to running bill.`, 'success');
     });
   }
 
@@ -749,23 +760,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- Helper to get active running order for current table ---
+  function getActiveOrderForSelectedTable() {
+    if (selectedTable === 'Takeaway') return null;
+    const matched = tablesData.find(t => t.tableNumber === selectedTable);
+    if (matched && matched.isOccupied && matched.order) {
+      return matched.order;
+    }
+    return null;
+  }
+
+  function updateActiveTableNotice() {
+    if (!cartActiveTableNotice) return;
+    const activeOrder = getActiveOrderForSelectedTable();
+    if (activeOrder) {
+      cartActiveTableNotice.style.display = 'block';
+      if (activeTableNoticeTitle) activeTableNoticeTitle.textContent = `🔔 ${selectedTable} Active Bill`;
+      if (activeTableNoticeBill) activeTableNoticeBill.textContent = `₹${activeOrder.finalTotalAmount} (${activeOrder.totalItemCount} items)`;
+      if (activeTableNoticeText) {
+        activeTableNoticeText.textContent = `Guests dining. New items (water bottles, drinks, food) added below will automatically append to this table's running bill!`;
+      }
+      if (guestNameInput && (!guestNameInput.value || guestNameInput.value === 'Guest')) {
+        guestNameInput.value = activeOrder.locationDetails?.customerName || 'Guest';
+      }
+    } else {
+      cartActiveTableNotice.style.display = 'none';
+    }
+  }
+
   // --- Select Table Pill in Cart ---
   function selectTable(tableName) {
     selectedTable = tableName;
     selectedTableDisplay.value = tableName;
-
-    const matched = tablesData.find(t => t.tableNumber === tableName);
-    if (matched && matched.isOccupied && matched.order) {
-      topActiveTableLabel.innerHTML = `${tableName} <span style="font-size: 0.72rem; color: #ffb703; background: rgba(255, 183, 3, 0.18); padding: 2px 7px; border-radius: 10px; font-weight: 700; border: 1px solid rgba(255, 183, 3, 0.3);">Active: ₹${matched.order.finalTotalAmount}</span>`;
-      if (btnFireKotOnly) {
-        btnFireKotOnly.textContent = `➕ Add to ${tableName} Bill`;
-      }
-    } else {
-      topActiveTableLabel.textContent = tableName;
-      if (btnFireKotOnly) {
-        btnFireKotOnly.textContent = '🔥 Fire KOT (Open Tab)';
-      }
-    }
+    topActiveTableLabel.textContent = tableName;
 
     document.querySelectorAll('.table-pill').forEach(btn => {
       if (btn.getAttribute('data-table') === tableName) {
@@ -774,6 +801,9 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.classList.remove('active');
       }
     });
+
+    updateActiveTableNotice();
+    renderCart();
   }
 
   tablePillsRow.addEventListener('click', (e) => {
@@ -789,10 +819,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // If occupied, check if user wants to see running bill
+    // If occupied, notify cashier that items will be added to this active bill
     const matched = tablesData.find(t => t.tableNumber === tName);
     if (matched && matched.isOccupied && matched.order) {
-      openTableDetailModal(tName, matched.order);
+      showToast(`Selected ${tName} (Running: ₹${matched.order.finalTotalAmount}). Tap water bottle, drinks, or items to add to bill!`, 'info');
     }
   });
 
@@ -1152,10 +1182,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderCart() {
     const { subtotal, totalItems } = calculateCartTotals();
+    const activeOrder = getActiveOrderForSelectedTable();
 
     cartCount.textContent = totalItems;
-    subtotalDisplay.textContent = `₹${subtotal}`;
-    finalTotalDisplay.textContent = `₹${subtotal}`;
+
+    if (activeOrder) {
+      const runningBill = Number(activeOrder.finalTotalAmount) || 0;
+      const combinedTotal = runningBill + subtotal;
+
+      if (subtotal > 0) {
+        subtotalDisplay.textContent = `+₹${subtotal} (New Items)`;
+        finalTotalDisplay.textContent = `₹${combinedTotal} (Updated Total)`;
+        if (btnFireKotOnly) btnFireKotOnly.textContent = `🔥 Add to ${selectedTable} (KOT)`;
+        if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `💳 Settle Full Bill (₹${combinedTotal})`;
+      } else {
+        subtotalDisplay.textContent = `₹0`;
+        finalTotalDisplay.textContent = `₹${runningBill} (Current Bill)`;
+        if (btnFireKotOnly) btnFireKotOnly.textContent = `🔥 Fire KOT (Table Tab)`;
+        if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `1-Tap: Confirm & Settle`;
+      }
+    } else {
+      subtotalDisplay.textContent = `₹${subtotal}`;
+      finalTotalDisplay.textContent = `₹${subtotal}`;
+      if (btnFireKotOnly) btnFireKotOnly.textContent = `🔥 Fire KOT (Table Tab)`;
+      if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `1-Tap: Confirm & Settle`;
+    }
 
     // Update mobile floating bar & top mobile badge
     const mobileCartTableLabel = document.getElementById('mobileCartTableLabel');
