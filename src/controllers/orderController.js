@@ -48,9 +48,9 @@ async function createOrder(req, res) {
 
     const { orderNumber, sequence } = await generateOrderNumber();
 
-    // Check if tableNumber is active and append requested
+    // Check if tableNumber is active and append items to running tab
     const targetTable = locationDetails.tableNumber;
-    const { appendToExisting = false } = req.body;
+    const shouldAppend = (req.body.appendToExisting !== false) && (targetTable && targetTable.toLowerCase() !== 'takeaway');
 
     // Calculate subtotals
     let subtotalAmount = 0;
@@ -76,7 +76,7 @@ async function createOrder(req, res) {
       };
     });
 
-    if (targetTable && appendToExisting) {
+    if (targetTable && shouldAppend) {
       const tableRegex = new RegExp(`^${targetTable.trim()}$`, 'i');
       const existingOrder = await Order.findOne({
         'locationDetails.tableNumber': { $regex: tableRegex },
@@ -568,12 +568,17 @@ async function settleTablePayment(req, res) {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const paymentTransactionId = `TXN-${year}${month}${day}-${randomSuffix}`;
 
+    const validMethods = ['CASH', 'PHONEPE', 'GPAY', 'PAYTM', 'UPI', 'UPI_PHONEPE', 'UPI_GPAY', 'UPI_PAYTM', 'UPI_QR', 'POS_CARD', 'CARD', 'CUSTOMER_TAB'];
+    let normMethod = String(paymentMethod || 'PHONEPE').toUpperCase().trim();
+    if (normMethod === 'GOOGLEPAY') normMethod = 'GPAY';
+    const finalPaymentMethod = validMethods.includes(normMethod) ? normMethod : 'PHONEPE';
+
     const payment = new Payment({
       paymentTransactionId,
       orderId: order._id,
       orderNumber: order.orderNumber,
       amountReceived: order.finalTotalAmount,
-      paymentMethod,
+      paymentMethod: finalPaymentMethod,
       cashTendered: Number(cashTendered) || order.finalTotalAmount,
       changeReturned: Number(changeReturned) || 0,
       status: 'SUCCESS',
@@ -606,6 +611,95 @@ async function settleTablePayment(req, res) {
   }
 }
 
+/**
+ * Merge multiple active tables into a single primary table (e.g. Party of 40 on Tables 1, 3, 5, 8)
+ */
+async function mergeTableOrders(req, res) {
+  try {
+    const { primaryTable, secondaryTables = [] } = req.body;
+
+    if (!primaryTable || !secondaryTables.length) {
+      return res.status(400).json({ success: false, message: 'Primary table and at least one secondary table are required.' });
+    }
+
+    const tableRegex = new RegExp(`^${primaryTable.trim()}$`, 'i');
+    let primaryOrder = await Order.findOne({
+      'locationDetails.tableNumber': { $regex: tableRegex },
+      paymentStatus: { $ne: 'PAID' },
+      orderStatus: { $ne: 'CANCELLED' }
+    });
+
+    if (!primaryOrder) {
+      return res.status(400).json({
+        success: false,
+        message: `${primaryTable} does not have an active bill to merge into. Please place an order on ${primaryTable} first.`
+      });
+    }
+
+    for (const secTable of secondaryTables) {
+      const secRegex = new RegExp(`^${secTable.trim()}$`, 'i');
+      const secOrder = await Order.findOne({
+        'locationDetails.tableNumber': { $regex: secRegex },
+        paymentStatus: { $ne: 'PAID' },
+        orderStatus: { $ne: 'CANCELLED' }
+      });
+
+      if (secOrder && secOrder.items && secOrder.items.length) {
+        secOrder.items.forEach(it => {
+          primaryOrder.items.push({
+            menuItemId: it.menuItemId,
+            sku: it.sku,
+            title: `${it.title} (${secTable})`,
+            category: it.category,
+            variant: it.variant,
+            unitPrice: it.unitPrice,
+            quantity: it.quantity,
+            subtotal: it.subtotal || (it.unitPrice * it.quantity),
+            specialInstructions: it.specialInstructions || ''
+          });
+        });
+
+        // Mark secondary order as merged/paid so secondary table is freed
+        secOrder.paymentStatus = 'PAID';
+        secOrder.orderStatus = 'SERVED';
+        secOrder.kitchenNotes = (secOrder.kitchenNotes || '') + ` [Merged into ${primaryTable}]`;
+        await secOrder.save();
+        syncOrderToOracle(secOrder).catch(() => {});
+      }
+    }
+
+    // Recalculate primaryOrder totals
+    let newSubtotal = 0;
+    let newItemCount = 0;
+    primaryOrder.items.forEach(it => {
+      newSubtotal += (it.subtotal || (it.unitPrice * it.quantity));
+      newItemCount += (Number(it.quantity) || 1);
+    });
+
+    primaryOrder.subtotalAmount = newSubtotal;
+    primaryOrder.totalItemCount = newItemCount;
+    primaryOrder.finalTotalAmount = Math.max(0, newSubtotal - (Number(primaryOrder.discountAmount) || 0));
+    primaryOrder.kitchenNotes = (primaryOrder.kitchenNotes || '') + ` [Group Bill: Merged ${secondaryTables.join(', ')}]`;
+
+    await primaryOrder.save();
+    syncOrderToOracle(primaryOrder).catch(() => {});
+
+    const { getIO } = require('../sockets/socketHandler');
+    const io = getIO();
+    if (io) {
+      io.emit('tables:count_updated', {});
+    }
+
+    res.json({
+      success: true,
+      message: `Merged ${secondaryTables.join(', ')} into ${primaryTable}! Total bill is now ₹${primaryOrder.finalTotalAmount}.`,
+      order: primaryOrder
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
 module.exports = {
   createOrder,
   getLiveOrders,
@@ -615,5 +709,6 @@ module.exports = {
   getTablesOverview,
   settleTablePayment,
   increaseTableCount,
-  decreaseTableCount
+  decreaseTableCount,
+  mergeTableOrders
 };

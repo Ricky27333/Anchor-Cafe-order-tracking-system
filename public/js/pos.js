@@ -26,7 +26,29 @@ document.addEventListener('DOMContentLoaded', () => {
   let menuCatalog = [];
   let currentCategory = 'all';
   let searchQuery = '';
-  let cart = [];
+  // --- Isolated Per-Table Draft Carts (Enterprise POS Architecture) ---
+  // Guarantees Table 1, Table 3, Table 5, Table 8 maintain independent carts with zero cross-contamination
+  const tableCarts = {};
+
+  function getTableCart(tName = selectedTable) {
+    if (!tableCarts[tName]) {
+      tableCarts[tName] = [];
+    }
+    return tableCarts[tName];
+  }
+
+  function clearTableCart(tName = selectedTable) {
+    tableCarts[tName] = [];
+  }
+
+  function getActiveOrderForSelectedTable(tName = selectedTable) {
+    const matched = tablesData.find(t => t.tableNumber === tName);
+    if (matched && matched.isOccupied && matched.order) {
+      return matched.order;
+    }
+    return null;
+  }
+
   let selectedTable = 'Table 1';
   let selectedPaymentMethod = 'PHONEPE';
   let modalSelectedPaymentMethod = 'PHONEPE';
@@ -1136,16 +1158,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   }
 
-  // --- Cart Management ---
+  // --- Enterprise Per-Table Cart Management ---
   function addToCart(item) {
-    const existingIndex = cart.findIndex(c =>
+    const currentCart = getTableCart(selectedTable);
+    const existingIndex = currentCart.findIndex(c =>
       c.title === item.title && c.variant === item.variant
     );
 
     if (existingIndex > -1) {
-      cart[existingIndex].quantity += 1;
+      currentCart[existingIndex].quantity += 1;
     } else {
-      cart.push({
+      currentCart.push({
         ...item,
         quantity: 1
       });
@@ -1156,24 +1179,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function changeQty(index, delta) {
-    if (cart[index]) {
-      cart[index].quantity += delta;
-      if (cart[index].quantity <= 0) {
-        cart.splice(index, 1);
+    const currentCart = getTableCart(selectedTable);
+    if (currentCart[index]) {
+      currentCart[index].quantity += delta;
+      if (currentCart[index].quantity <= 0) {
+        currentCart.splice(index, 1);
       }
       renderCart();
     }
   }
 
   function clearCart() {
-    cart = [];
+    clearTableCart(selectedTable);
     renderCart();
+    showToast(`Cleared draft items for ${selectedTable}`, 'info');
   }
 
   function calculateCartTotals() {
+    const currentCart = getTableCart(selectedTable);
     let subtotal = 0;
     let totalItems = 0;
-    cart.forEach(it => {
+    currentCart.forEach(it => {
       subtotal += it.unitPrice * it.quantity;
       totalItems += it.quantity;
     });
@@ -1182,24 +1208,121 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderCart() {
     const { subtotal, totalItems } = calculateCartTotals();
+    const currentCart = getTableCart(selectedTable);
     const activeOrder = getActiveOrderForSelectedTable();
 
     cartCount.textContent = totalItems;
 
+    let itemsHtml = '';
+
+    // SECTION 1: Active Placed Bill (Cooking / Served in Kitchen)
+    if (activeOrder && activeOrder.items && activeOrder.items.length > 0) {
+      itemsHtml += `
+        <div style="background: rgba(11, 37, 69, 0.7); border: 1px solid rgba(201, 168, 106, 0.4); border-radius: var(--radius-sm); padding: 0.6rem; margin-bottom: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; border-bottom: 1px dashed rgba(255,255,255,0.12); padding-bottom: 0.35rem;">
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--color-gold); text-transform: uppercase;">
+              📋 Placed Order (${activeOrder.orderNumber})
+            </span>
+            <span style="font-size: 0.72rem; color: #52B788; font-weight: 700; background: rgba(82, 183, 136, 0.15); padding: 0.15rem 0.45rem; border-radius: 4px;">
+              ${activeOrder.paymentStatus === 'PAID' ? '🟢 Paid' : '🟡 Active Tab'}
+            </span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+      `;
+
+      activeOrder.items.forEach(it => {
+        itemsHtml += `
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--color-foam);">
+            <span>
+              <strong style="color: var(--color-gold);">${it.quantity}x</strong> ${it.title}
+              ${it.variant ? `<small style="color: var(--color-sand-muted); font-size: 0.7rem;">(${it.variant})</small>` : ''}
+            </span>
+            <span style="font-weight: 600;">₹${it.subtotal || (it.unitPrice * it.quantity)}</span>
+          </div>
+        `;
+      });
+
+      itemsHtml += `
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 0.45rem; padding-top: 0.35rem; border-top: 1px solid rgba(255,255,255,0.08); font-size: 0.8rem; font-weight: 700; color: var(--color-sand);">
+            <span>Placed Bill Subtotal:</span>
+            <span>₹${activeOrder.finalTotalAmount}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // SECTION 2: New Reorder Additions (Draft in Cart for this table)
+    if (currentCart.length > 0) {
+      if (activeOrder) {
+        itemsHtml += `
+          <div style="font-size: 0.75rem; font-weight: 700; color: #48CAE4; text-transform: uppercase; margin-bottom: 0.4rem; display: flex; justify-content: space-between; align-items: center;">
+            <span>➕ New Additions (Water Bottles / Food):</span>
+            <span style="color: var(--color-gold);">+₹${subtotal}</span>
+          </div>
+        `;
+      }
+
+      currentCart.forEach((item, idx) => {
+        itemsHtml += `
+          <div class="cart-item-row" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-sm); margin-bottom: 0.4rem; padding: 0.45rem;">
+            <div class="item-info-col">
+              <div class="item-info-title">${item.title}</div>
+              ${item.variant ? `<div class="item-info-variant">${item.variant}</div>` : ''}
+              <div class="item-info-price">₹${item.unitPrice} each</div>
+            </div>
+            <div class="qty-controls">
+              <button class="btn-qty" data-idx="${idx}" data-delta="-1">-</button>
+              <span class="qty-num">${item.quantity}</span>
+              <button class="btn-qty" data-idx="${idx}" data-delta="1">+</button>
+            </div>
+            <div class="item-subtotal">₹${item.unitPrice * item.quantity}</div>
+          </div>
+        `;
+      });
+    } else if (!activeOrder) {
+      itemsHtml = `
+        <div class="cart-empty-state">
+          <div class="empty-icon">☕</div>
+          <p>${selectedTable} order is empty</p>
+          <small>Tap water bottle, soft drinks, coffee, or snacks to add</small>
+        </div>
+      `;
+    } else {
+      itemsHtml += `
+        <div style="text-align: center; padding: 0.75rem; border: 1px dashed rgba(201, 168, 106, 0.25); border-radius: var(--radius-sm); color: var(--color-sand-muted); font-size: 0.75rem; margin-top: 0.35rem;">
+          Tap any menu item (like water bottles, coffee, snacks) to append extra items to ${selectedTable}'s bill.
+        </div>
+      `;
+    }
+
+    cartItemsList.innerHTML = itemsHtml;
+
+    // Attach qty listeners to draft items
+    cartItemsList.querySelectorAll('.btn-qty').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const i = parseInt(btn.getAttribute('data-idx'), 10);
+        const d = parseInt(btn.getAttribute('data-delta'), 10);
+        changeQty(i, d);
+      });
+    });
+
+    // Update Totals & Dynamic Action Buttons
     if (activeOrder) {
       const runningBill = Number(activeOrder.finalTotalAmount) || 0;
       const combinedTotal = runningBill + subtotal;
 
       if (subtotal > 0) {
         subtotalDisplay.textContent = `+₹${subtotal} (New Items)`;
-        finalTotalDisplay.textContent = `₹${combinedTotal} (Updated Total)`;
-        if (btnFireKotOnly) btnFireKotOnly.textContent = `🔥 Add to ${selectedTable} (KOT)`;
+        finalTotalDisplay.textContent = `₹${combinedTotal} (Total Due)`;
+        if (btnFireKotOnly) btnFireKotOnly.textContent = `🔥 Send New Items to Kitchen (KOT)`;
         if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `💳 Settle Full Bill (₹${combinedTotal})`;
       } else {
         subtotalDisplay.textContent = `₹0`;
-        finalTotalDisplay.textContent = `₹${runningBill} (Current Bill)`;
+        finalTotalDisplay.textContent = `₹${runningBill} (Total Due)`;
         if (btnFireKotOnly) btnFireKotOnly.textContent = `🔥 Fire KOT (Table Tab)`;
-        if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `1-Tap: Confirm & Settle`;
+        if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `💳 1-Tap Settle & Free ${selectedTable} (₹${runningBill})`;
       }
     } else {
       subtotalDisplay.textContent = `₹${subtotal}`;
@@ -1214,52 +1337,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const mobileCartTotal = document.getElementById('mobileCartTotal');
     const topCartBadgeCount = document.getElementById('topCartBadgeCount');
     const topCartBadgeTotal = document.getElementById('topCartBadgeTotal');
+    const displayTotal = activeOrder ? (Number(activeOrder.finalTotalAmount) + subtotal) : subtotal;
+
     if (mobileCartTableLabel) mobileCartTableLabel.textContent = selectedTable;
-    if (mobileCartCount) mobileCartCount.textContent = totalItems;
-    if (mobileCartTotal) mobileCartTotal.textContent = `₹${subtotal}`;
-    if (topCartBadgeCount) topCartBadgeCount.textContent = totalItems;
-    if (topCartBadgeTotal) topCartBadgeTotal.textContent = `₹${subtotal}`;
-
-    if (cart.length === 0) {
-      cartItemsList.innerHTML = `
-        <div class="cart-empty-state">
-          <div class="empty-icon">☕</div>
-          <p>${selectedTable} order is empty</p>
-          <small>Tap water bottle, soft drinks, coffee, or snacks to add</small>
-        </div>
-      `;
-      return;
-    }
-
-    cartItemsList.innerHTML = '';
-    cart.forEach((item, idx) => {
-      const row = document.createElement('div');
-      row.className = 'cart-item-row';
-      row.innerHTML = `
-        <div class="item-info-col">
-          <div class="item-info-title">${item.title}</div>
-          ${item.variant ? `<div class="item-info-variant">${item.variant}</div>` : ''}
-          <div class="item-info-price">₹${item.unitPrice} each</div>
-        </div>
-        <div class="qty-controls">
-          <button class="btn-qty" data-idx="${idx}" data-delta="-1">-</button>
-          <span class="qty-num">${item.quantity}</span>
-          <button class="btn-qty" data-idx="${idx}" data-delta="1">+</button>
-        </div>
-        <div class="item-subtotal">₹${item.unitPrice * item.quantity}</div>
-      `;
-
-      row.querySelectorAll('.btn-qty').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const i = parseInt(btn.getAttribute('data-idx'), 10);
-          const d = parseInt(btn.getAttribute('data-delta'), 10);
-          changeQty(i, d);
-        });
-      });
-
-      cartItemsList.appendChild(row);
-    });
+    if (mobileCartCount) mobileCartCount.textContent = totalItems + (activeOrder ? activeOrder.totalItemCount : 0);
+    if (mobileCartTotal) mobileCartTotal.textContent = `₹${displayTotal}`;
+    if (topCartBadgeCount) topCartBadgeCount.textContent = totalItems + (activeOrder ? activeOrder.totalItemCount : 0);
+    if (topCartBadgeTotal) topCartBadgeTotal.textContent = `₹${displayTotal}`;
   }
 
   if (btnClearCart) btnClearCart.addEventListener('click', clearCart);
@@ -1292,13 +1376,50 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- Create / Fire Order ---
+  // --- Create / Fire / Settle Order ---
   async function submitTableOrder(isPaidImmediately = false) {
-    if (cart.length === 0) {
+    const currentCart = getTableCart(selectedTable);
+    const activeOrder = getActiveOrderForSelectedTable();
+
+    // Case 1: Active table exists, NO new draft items, and cashier clicks "Settle Table"
+    if (currentCart.length === 0 && activeOrder && isPaidImmediately) {
+      try {
+        btnConfirmPaymentAndOrder.disabled = true;
+        btnConfirmPaymentAndOrder.textContent = 'Settling...';
+
+        const res = await fetch('/api/orders/settle-table', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: activeOrder._id,
+            paymentMethod: selectedPaymentMethod
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          soundEngine.playPaymentSuccess();
+          showToast(`✅ ${selectedTable} settled via ${selectedPaymentMethod}! Table is now FREE for new guests.`, 'success');
+          clearTableCart(selectedTable);
+          fetchTablesOverview();
+        } else {
+          showToast(data.message || 'Error settling table', 'danger');
+        }
+      } catch (err) {
+        showToast(`Error: ${err.message}`, 'danger');
+      } finally {
+        btnConfirmPaymentAndOrder.disabled = false;
+      }
+      return;
+    }
+
+    // Case 2: No active order and empty cart
+    if (currentCart.length === 0) {
       showToast('Please add items to cart first', 'warning');
       return;
     }
 
+    // Case 3: Submitting new items (either fresh table order OR appending extra items to active table)
     try {
       const orderType = selectedTable === 'Takeaway' ? 'TAKEAWAY' : 'DINE_IN';
       const payload = {
@@ -1307,7 +1428,7 @@ document.addEventListener('DOMContentLoaded', () => {
           tableNumber: selectedTable,
           customerName: guestNameInput.value || 'Guest'
         },
-        items: cart.map(it => ({
+        items: currentCart.map(it => ({
           menuItemId: it.menuItemId,
           sku: it.sku,
           title: it.title,
@@ -1331,13 +1452,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.success) {
         if (isPaidImmediately) {
           soundEngine.playPaymentSuccess();
-          showToast(`✅ Payment confirmed via ${selectedPaymentMethod} for ${selectedTable}! KOT sent.`, 'success');
+          showToast(`✅ Payment confirmed via ${selectedPaymentMethod} for ${selectedTable}! Table settled.`, 'success');
         } else {
           soundEngine.playNewOrderChime();
-          showToast(`🔥 Order placed for ${selectedTable} (${data.order.orderNumber})! Pay later tab opened.`, 'success');
+          showToast(`🔥 Order placed for ${selectedTable} (${data.order.orderNumber})! KOT sent.`, 'success');
         }
 
-        clearCart();
+        clearTableCart(selectedTable);
         closeMobileCart();
         fetchTablesOverview();
       } else {
@@ -1348,12 +1469,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 1-Tap: Confirm Payment & Fire KOT
+  // 1-Tap: Confirm Payment & Settle Table
   if (btnConfirmPaymentAndOrder) {
     btnConfirmPaymentAndOrder.addEventListener('click', () => submitTableOrder(true));
   }
 
-  // Fire KOT Only (Open Table Tab)
+  // Fire KOT Only (Table Tab)
   if (btnFireKotOnly) {
     btnFireKotOnly.addEventListener('click', () => submitTableOrder(false));
   }
@@ -1379,6 +1500,131 @@ document.addEventListener('DOMContentLoaded', () => {
   if (tabBtnOpenCart) tabBtnOpenCart.addEventListener('click', openMobileCart);
   if (btnCloseMobileCart) btnCloseMobileCart.addEventListener('click', closeMobileCart);
   if (cartMobileBackdrop) cartMobileBackdrop.addEventListener('click', closeMobileCart);
+
+  // --- Link / Merge Tables Modal (Party of 40 on Multiple Tables) ---
+  const linkTablesModal = document.getElementById('linkTablesModal');
+  const btnOpenLinkTablesModal = document.getElementById('btnOpenLinkTablesModal');
+  const btnCloseLinkTablesModal = document.getElementById('btnCloseLinkTablesModal');
+  const btnCancelLinkTables = document.getElementById('btnCancelLinkTables');
+  const selectPrimaryTable = document.getElementById('selectPrimaryTable');
+  const secondaryTablesCheckboxes = document.getElementById('secondaryTablesCheckboxes');
+  const btnConfirmMergeTables = document.getElementById('btnConfirmMergeTables');
+
+  function openLinkTablesModal() {
+    if (!linkTablesModal) return;
+    populateLinkTablesForm();
+    linkTablesModal.classList.add('open');
+  }
+
+  function closeLinkTablesModal() {
+    if (linkTablesModal) linkTablesModal.classList.remove('open');
+  }
+
+  function populateLinkTablesForm() {
+    if (!selectPrimaryTable || !secondaryTablesCheckboxes) return;
+
+    // Find all occupied/active tables from tablesData
+    const occupiedTables = (tablesData || []).filter(t => t.isOccupied && t.order);
+
+    if (occupiedTables.length < 2) {
+      selectPrimaryTable.innerHTML = `<option value="">No multiple active tables to merge</option>`;
+      secondaryTablesCheckboxes.innerHTML = `
+        <div style="grid-column: 1 / -1; color: var(--color-foam); opacity: 0.8; font-size: 0.8rem; text-align: center; padding: 0.5rem;">
+          At least 2 active tables with orders are required to merge.
+        </div>
+      `;
+      if (btnConfirmMergeTables) btnConfirmMergeTables.disabled = true;
+      return;
+    }
+
+    if (btnConfirmMergeTables) btnConfirmMergeTables.disabled = false;
+
+    // Populate Primary Table dropdown
+    selectPrimaryTable.innerHTML = occupiedTables.map(t => `
+      <option value="${t.tableNumber}" ${t.tableNumber === selectedTable ? 'selected' : ''}>
+        ${t.tableNumber} (Bill: ₹${t.order.finalTotalAmount || t.order.subtotalAmount || 0})
+      </option>
+    `).join('');
+
+    renderSecondaryCheckboxes();
+
+    selectPrimaryTable.onchange = () => {
+      renderSecondaryCheckboxes();
+    };
+  }
+
+  function renderSecondaryCheckboxes() {
+    const primary = selectPrimaryTable.value;
+    const occupiedTables = (tablesData || []).filter(t => t.isOccupied && t.order && t.tableNumber !== primary);
+
+    if (occupiedTables.length === 0) {
+      secondaryTablesCheckboxes.innerHTML = `<div style="grid-column: 1 / -1; color: var(--color-foam); font-size: 0.8rem;">No other active tables found.</div>`;
+      return;
+    }
+
+    secondaryTablesCheckboxes.innerHTML = occupiedTables.map(t => `
+      <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--color-sand); cursor: pointer; background: rgba(255,255,255,0.05); padding: 0.4rem; border-radius: 4px;">
+        <input type="checkbox" name="secondaryTable" value="${t.tableNumber}" style="cursor: pointer;" />
+        <span><strong>${t.tableNumber}</strong> (₹${t.order.finalTotalAmount || 0})</span>
+      </label>
+    `).join('');
+  }
+
+  if (btnOpenLinkTablesModal) btnOpenLinkTablesModal.addEventListener('click', openLinkTablesModal);
+  if (btnCloseLinkTablesModal) btnCloseLinkTablesModal.addEventListener('click', closeLinkTablesModal);
+  if (btnCancelLinkTables) btnCancelLinkTables.addEventListener('click', closeLinkTablesModal);
+  if (linkTablesModal) {
+    linkTablesModal.addEventListener('click', (e) => {
+      if (e.target === linkTablesModal) closeLinkTablesModal();
+    });
+  }
+
+  if (btnConfirmMergeTables) {
+    btnConfirmMergeTables.addEventListener('click', async () => {
+      const primaryTable = selectPrimaryTable.value;
+      const checkedBoxes = Array.from(document.querySelectorAll('input[name="secondaryTable"]:checked'));
+      const secondaryTables = checkedBoxes.map(cb => cb.value);
+
+      if (!primaryTable) {
+        showToast('Please select a primary table', 'warning');
+        return;
+      }
+      if (secondaryTables.length === 0) {
+        showToast('Please select at least one secondary table to merge', 'warning');
+        return;
+      }
+
+      try {
+        btnConfirmMergeTables.disabled = true;
+        btnConfirmMergeTables.textContent = 'Merging...';
+
+        const res = await fetch('/api/orders/tables/merge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ primaryTable, secondaryTables })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          soundEngine.playNewOrderChime();
+          showToast(`✅ ${data.message}`, 'success');
+          // Clear any local draft carts of merged secondary tables
+          secondaryTables.forEach(t => clearTableCart(t));
+          closeLinkTablesModal();
+          // Select primary table so cashier sees merged bill
+          selectTable(primaryTable);
+          fetchTablesOverview();
+        } else {
+          showToast(data.message || 'Error merging tables', 'danger');
+        }
+      } catch (err) {
+        showToast(`Error: ${err.message}`, 'danger');
+      } finally {
+        btnConfirmMergeTables.disabled = false;
+        btnConfirmMergeTables.textContent = '🔀 Merge Tables into One Bill';
+      }
+    });
+  }
 
   // --- Toast Notifications ---
   function showToast(message, type = 'info') {
