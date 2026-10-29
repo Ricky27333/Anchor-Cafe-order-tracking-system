@@ -1447,18 +1447,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (subtotal > 0) {
         subtotalDisplay.textContent = `+₹${subtotal} (New Items)`;
         finalTotalDisplay.textContent = `₹${combinedTotal} (Total Due)`;
-        if (btnFireKotOnly) btnFireKotOnly.textContent = `🔥 Send New Items to Kitchen (KOT)`;
+        if (btnFireKotOnly) btnFireKotOnly.textContent = `➕ Add Items to Table Tab`;
         if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `💳 Settle Full Bill (₹${combinedTotal})`;
       } else {
         subtotalDisplay.textContent = `₹0`;
         finalTotalDisplay.textContent = `₹${runningBill} (Total Due)`;
-        if (btnFireKotOnly) btnFireKotOnly.textContent = `🔥 Fire KOT (Table Tab)`;
+        if (btnFireKotOnly) btnFireKotOnly.textContent = `💾 Save to Table Tab`;
         if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `💳 1-Tap Settle & Free ${selectedTable} (₹${runningBill})`;
       }
     } else {
       subtotalDisplay.textContent = `₹${subtotal}`;
       finalTotalDisplay.textContent = `₹${subtotal}`;
-      if (btnFireKotOnly) btnFireKotOnly.textContent = `🔥 Fire KOT (Table Tab)`;
+      if (btnFireKotOnly) btnFireKotOnly.textContent = `💾 Save to Table Tab`;
       if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `1-Tap: Confirm & Settle`;
     }
 
@@ -1586,7 +1586,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast(`✅ Payment confirmed via ${selectedPaymentMethod} for ${selectedTable}! Table settled.`, 'success');
         } else {
           soundEngine.playNewOrderChime();
-          showToast(`🔥 Order placed for ${selectedTable} (${data.order.orderNumber})! KOT sent.`, 'success');
+          showToast(`📋 Order saved for ${selectedTable} (${data.order.orderNumber})!`, 'success');
         }
 
         clearTableCart(selectedTable);

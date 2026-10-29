@@ -44,10 +44,6 @@ app.get('/pos', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/pos.html'));
 });
 
-app.get('/kitchen', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/kitchen.html'));
-});
-
 app.get('/track', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/track.html'));
 });

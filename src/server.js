@@ -45,7 +45,6 @@ async function startServer() {
     console.log(`🏖️ Location: Ramapuram Beach, Chirala (Choramandal Coast)`);
     console.log(`🌐 Live Server: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
     console.log(`📱 Waiter & Cashier POS:  http://localhost:${PORT}/pos`);
-    console.log(`🍳 Kitchen KOT Display:   http://localhost:${PORT}/kitchen`);
     console.log(`📍 Customer Live Tracker: http://localhost:${PORT}/track`);
     console.log(`📊 Management Analytics:  http://localhost:${PORT}/admin/analytics`);
     console.log(`=======================================================`);
