@@ -955,6 +955,218 @@
 }
 
 /* ==========================================================================
+   🪑 Mobile & Desktop Table Switcher Strip (Always Visible)
+   ========================================================================== */
+.mobile-table-strip-bar {
+  background: rgba(11, 37, 69, 0.95);
+  border-bottom: 1px solid rgba(201, 168, 106, 0.25);
+  padding: 0.3rem 0.75rem 0.45rem 0.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.mobile-table-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding: 0.15rem 0 0.3rem 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.mobile-table-strip::-webkit-scrollbar {
+  height: 3px;
+}
+.mobile-table-strip::-webkit-scrollbar-thumb {
+  background: var(--color-gold);
+  border-radius: 4px;
+}
+
+.m-table-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(201, 168, 106, 0.28);
+  color: var(--color-foam);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+
+.m-table-btn:hover {
+  background: rgba(201, 168, 106, 0.15);
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
+.m-table-btn.active {
+  background: linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%);
+  color: var(--color-navy-dark);
+  border-color: var(--color-gold);
+  box-shadow: 0 2px 10px rgba(201, 168, 106, 0.45);
+  font-weight: 800;
+}
+
+.m-table-btn.occupied {
+  border-color: #E63946;
+  background: rgba(230, 57, 70, 0.15);
+  color: #FFB4A2;
+}
+.m-table-btn.occupied.active {
+  background: linear-gradient(135deg, #E63946 0%, #9D0208 100%);
+  color: #FFF;
+  border-color: #FFB4A2;
+  box-shadow: 0 2px 10px rgba(230, 57, 70, 0.45);
+}
+
+.m-table-btn .tbl-badge {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 10px;
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.3);
+}
+.m-table-btn.active .tbl-badge {
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+}
+.m-table-btn .tbl-draft-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #48CAE4;
+  display: inline-block;
+  box-shadow: 0 0 6px #48CAE4;
+}
+
+/* ==========================================================================
+   ⚡ 1-Tap Beach Bestsellers Speed-Bar
+   ========================================================================== */
+.speed-bar-container {
+  background: rgba(6, 24, 44, 0.9);
+  border-bottom: 1px solid rgba(201, 168, 106, 0.2);
+  padding: 0.35rem 0.75rem 0.45rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.speed-bar-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--color-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.speed-bar-scroll {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding: 0.1rem 0 0.25rem 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.speed-bar-scroll::-webkit-scrollbar {
+  height: 3px;
+}
+.speed-bar-scroll::-webkit-scrollbar-thumb {
+  background: #48CAE4;
+  border-radius: 4px;
+}
+
+.speed-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: rgba(16, 43, 78, 0.85);
+  border: 1px solid rgba(72, 202, 228, 0.35);
+  color: #E2EAFC;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.speed-btn:hover {
+  background: rgba(72, 202, 228, 0.2);
+  border-color: #48CAE4;
+  color: #FFF;
+  transform: translateY(-1px);
+}
+.speed-btn:active {
+  transform: scale(0.95);
+  background: #48CAE4;
+  color: #06182C;
+}
+.speed-btn .speed-icon {
+  font-size: 0.95rem;
+}
+.speed-btn .speed-name {
+  font-weight: 700;
+}
+.speed-btn .speed-price {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--color-gold);
+  background: rgba(201, 168, 106, 0.15);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+.speed-btn:hover .speed-price {
+  color: #FFF;
+  background: rgba(201, 168, 106, 0.3);
+}
+
+/* Modal Filter Buttons */
+.pill-btn {
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: var(--color-foam);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.pill-btn:hover {
+  background: rgba(201, 168, 106, 0.15);
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+.pill-btn.active {
+  background: linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%);
+  color: var(--color-navy-dark);
+  border-color: var(--color-gold);
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(201, 168, 106, 0.35);
+}
+
+
+
+/* ==========================================================================
    🖨️ Thermal Receipt Printing Styles (80mm Restaurant Format)
    ========================================================================== */
 @media print {

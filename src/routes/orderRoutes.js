@@ -10,12 +10,14 @@ const {
   settleTablePayment,
   increaseTableCount,
   decreaseTableCount,
-  mergeTableOrders
+  mergeTableOrders,
+  getTablePerformance
 } = require('../controllers/orderController');
 
 router.post('/', createOrder);
 router.get('/', getAllOrders);
 router.get('/tables', getTablesOverview);
+router.get('/tables/performance', getTablePerformance);
 router.post('/tables/increase', increaseTableCount);
 router.post('/tables/decrease', decreaseTableCount);
 router.post('/tables/merge', mergeTableOrders);

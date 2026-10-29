@@ -1,6 +1,7 @@
 const Expense = require('../models/Expense');
 const Order = require('../models/Order');
 const mongoose = require('mongoose');
+const localDataStore = require('../services/localDataStore');
 
 // In-memory expenses storage fallback
 const inMemoryExpenses = [];
@@ -78,6 +79,8 @@ async function recordExpense(req, res) {
       saved._id = saved._id || `EXP-${Date.now()}`;
       inMemoryExpenses.push(saved);
     }
+
+    localDataStore.saveExpense(saved.toObject ? saved.toObject() : saved);
 
     try {
       const { syncExpenseToOracle } = require('../services/oracleSyncService');

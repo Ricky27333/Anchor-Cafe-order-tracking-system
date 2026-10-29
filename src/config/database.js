@@ -28,8 +28,9 @@ const connectDB = async () => {
 
   // In Cloud Production (e.g. Render / Heroku / AWS), do not download MongoMemoryServer
   if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
-    console.warn('⚠️ [AnchorTrack DB] Running in cloud environment without MONGODB_URI.');
-    console.log('💡 [AnchorTrack DB] Tip: Add your free MongoDB Atlas MONGODB_URI in Render Dashboard -> Environment Variables for persistent storage.');
+    console.warn('⚠️ [AnchorTrack DB] Running in cloud environment without external MONGODB_URI.');
+    console.log('⚡ [AnchorTrack DB] Operating on high-performance fail-safe local persistent storage with Oracle sync.');
+    mongoose.set('bufferCommands', false);
     return null;
   }
 

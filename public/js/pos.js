@@ -26,9 +26,26 @@ document.addEventListener('DOMContentLoaded', () => {
   let menuCatalog = [];
   let currentCategory = 'all';
   let searchQuery = '';
-  // --- Isolated Per-Table Draft Carts (Enterprise POS Architecture) ---
-  // Guarantees Table 1, Table 3, Table 5, Table 8 maintain independent carts with zero cross-contamination
-  const tableCarts = {};
+  // --- Persistent Per-Table Draft Carts (Enterprise POS Architecture) ---
+  // Guarantees Table 1, Table 3, Table 5, Table 8 maintain independent carts with zero cross-contamination,
+  // surviving reloads, mobile tab switching, and network disconnects.
+  const DRAFTS_KEY = 'anchortrack_table_drafts';
+  const tableCarts = (function() {
+    try {
+      const saved = localStorage.getItem(DRAFTS_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  })();
+
+  function persistTableCarts() {
+    try {
+      localStorage.setItem(DRAFTS_KEY, JSON.stringify(tableCarts));
+    } catch (e) {
+      console.warn('Could not persist table drafts:', e);
+    }
+  }
 
   function getTableCart(tName = selectedTable) {
     if (!tableCarts[tName]) {
@@ -39,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function clearTableCart(tName = selectedTable) {
     tableCarts[tName] = [];
+    persistTableCarts();
   }
 
   function getActiveOrderForSelectedTable(tName = selectedTable) {
@@ -102,6 +120,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const catalogStats = document.getElementById('catalogStats');
   const searchInput = document.getElementById('searchInput');
   const categoryFilterBar = document.getElementById('categoryFilterBar');
+
+  // Fast Table Switcher Strip DOM (Always Visible)
+  const mobileTableStripBar = document.getElementById('mobileTableStripBar');
+  const mobileTableStrip = document.getElementById('mobileTableStrip');
+  const stripActiveTableLabel = document.getElementById('stripActiveTableLabel');
+  const stripActiveTableBillBadge = document.getElementById('stripActiveTableBillBadge');
+
+  // ⚡ 1-Tap Speed-Bar DOM
+  const speedBarContainer = document.getElementById('speedBarContainer');
+  const speedBarScroll = document.getElementById('speedBarScroll');
+
+  // 📊 Table-Wise Order Tracking & Performance Modal DOM
+  const btnOpenTableTrackingModal = document.getElementById('btnOpenTableTrackingModal');
+  const tableTrackingModal = document.getElementById('tableTrackingModal');
+  const btnCloseTableTrackingModal = document.getElementById('btnCloseTableTrackingModal');
+  const btnCloseTableTrackingModalBtn = document.getElementById('btnCloseTableTrackingModalBtn');
+  const btnTblTrackToday = document.getElementById('btnTblTrackToday');
+  const btnTblTrackYesterday = document.getElementById('btnTblTrackYesterday');
+  const btnTblTrackMonth = document.getElementById('btnTblTrackMonth');
+  const inputTblTrackDate = document.getElementById('inputTblTrackDate');
+  const tblTrackGrandRevenue = document.getElementById('tblTrackGrandRevenue');
+  const tblTrackGrandOrders = document.getElementById('tblTrackGrandOrders');
+  const tblTrackActiveTablesNow = document.getElementById('tblTrackActiveTablesNow');
+  const tblTrackTableBody = document.getElementById('tblTrackTableBody');
 
   // Cart DOM
   const tablePillsRow = document.getElementById('tablePillsRow');
@@ -209,6 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (headerCapacityPill) headerCapacityPill.textContent = `${currentTotalTables} Tables Active`;
 
         renderTablePills();
+        renderMobileTableStrip();
         renderTablesFloorGrid();
         renderTakeawaysFloorGrid();
         updateActiveTableNotice();
@@ -246,6 +289,88 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     tablePillsRow.appendChild(takeawayBtn);
   }
+
+  // --- Render Mobile & Desktop Fast Table Switcher Strip (Always Visible) ---
+  function renderMobileTableStrip() {
+    if (!mobileTableStrip) return;
+    mobileTableStrip.innerHTML = '';
+
+    for (let i = 1; i <= currentTotalTables; i++) {
+      const tName = `Table ${i}`;
+      const btn = document.createElement('button');
+      btn.className = `m-table-btn ${selectedTable === tName ? 'active' : ''}`;
+      btn.setAttribute('data-table', tName);
+
+      const matched = tablesData.find(t => t.tableNumber === tName);
+      const isOcc = matched && matched.isOccupied;
+      const draftCart = tableCarts[tName] || [];
+      const hasDraft = draftCart.length > 0;
+
+      if (isOcc) {
+        btn.classList.add('occupied');
+      }
+
+      let inner = `<span>T${i}</span>`;
+      if (isOcc && matched.order) {
+        inner += `<span class="tbl-badge">₹${matched.order.finalTotalAmount}</span>`;
+      } else if (hasDraft) {
+        let draftQty = 0;
+        draftCart.forEach(d => { draftQty += d.quantity; });
+        inner += `<span class="tbl-draft-dot" title="${draftQty} items added"></span>`;
+      }
+
+      btn.innerHTML = inner;
+
+      btn.addEventListener('click', () => {
+        selectTable(tName);
+      });
+
+      mobileTableStrip.appendChild(btn);
+    }
+
+    // Takeaway button in strip
+    const takeawayBtn = document.createElement('button');
+    takeawayBtn.className = `m-table-btn ${selectedTable === 'Takeaway' ? 'active' : ''}`;
+    takeawayBtn.setAttribute('data-table', 'Takeaway');
+    const tkCount = activeTakeawaysData.length;
+    let tkInner = `<span>🛍️ Takeaway</span>`;
+    if (tkCount > 0) {
+      takeawayBtn.classList.add('occupied');
+      tkInner += `<span class="tbl-badge">${tkCount}</span>`;
+    } else if ((tableCarts['Takeaway'] || []).length > 0) {
+      tkInner += `<span class="tbl-draft-dot"></span>`;
+    }
+    takeawayBtn.innerHTML = tkInner;
+    takeawayBtn.addEventListener('click', () => {
+      selectTable('Takeaway');
+    });
+    mobileTableStrip.appendChild(takeawayBtn);
+
+    // Update active table label & bill badge on strip
+    if (stripActiveTableLabel) {
+      stripActiveTableLabel.textContent = selectedTable;
+    }
+    if (stripActiveTableBillBadge) {
+      const matched = tablesData.find(t => t.tableNumber === selectedTable);
+      const draft = tableCarts[selectedTable] || [];
+      if (matched && matched.isOccupied && matched.order) {
+        stripActiveTableBillBadge.textContent = `Running: ₹${matched.order.finalTotalAmount}`;
+        stripActiveTableBillBadge.style.display = 'inline-block';
+        stripActiveTableBillBadge.style.background = 'rgba(230, 57, 70, 0.25)';
+        stripActiveTableBillBadge.style.color = '#FFB4A2';
+      } else if (draft.length > 0) {
+        let draftSub = 0;
+        draft.forEach(d => { draftSub += d.unitPrice * d.quantity; });
+        stripActiveTableBillBadge.textContent = `Draft: ₹${draftSub}`;
+        stripActiveTableBillBadge.style.display = 'inline-block';
+        stripActiveTableBillBadge.style.background = 'rgba(82, 183, 136, 0.25)';
+        stripActiveTableBillBadge.style.color = '#52B788';
+      } else {
+        stripActiveTableBillBadge.style.display = 'none';
+      }
+    }
+  }
+
 
   // --- Render Tables Floor Layout ---
   function renderTablesFloorGrid() {
@@ -813,8 +938,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Select Table Pill in Cart ---
   function selectTable(tableName) {
     selectedTable = tableName;
-    selectedTableDisplay.value = tableName;
-    topActiveTableLabel.textContent = tableName;
+    if (selectedTableDisplay) selectedTableDisplay.value = tableName;
+    if (topActiveTableLabel) topActiveTableLabel.textContent = tableName;
 
     document.querySelectorAll('.table-pill').forEach(btn => {
       if (btn.getAttribute('data-table') === tableName) {
@@ -824,6 +949,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    renderMobileTableStrip();
     updateActiveTableNotice();
     renderCart();
   }
@@ -1174,6 +1300,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    persistTableCarts();
+    renderMobileTableStrip();
     renderCart();
     showToast(`Added ${item.title} to ${selectedTable}`, 'success');
   }
@@ -1185,12 +1313,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentCart[index].quantity <= 0) {
         currentCart.splice(index, 1);
       }
+      persistTableCarts();
+      renderMobileTableStrip();
       renderCart();
     }
   }
 
   function clearCart() {
     clearTableCart(selectedTable);
+    renderMobileTableStrip();
     renderCart();
     showToast(`Cleared draft items for ${selectedTable}`, 'info');
   }
@@ -1622,6 +1753,171 @@ document.addEventListener('DOMContentLoaded', () => {
       } finally {
         btnConfirmMergeTables.disabled = false;
         btnConfirmMergeTables.textContent = '🔀 Merge Tables into One Bill';
+      }
+    });
+  }
+
+  // --- ⚡ 1-Tap Speed Bar (Beach Bestsellers Quick Add) ---
+  if (speedBarScroll) {
+    speedBarScroll.addEventListener('click', (e) => {
+      const btn = e.target.closest('.speed-btn');
+      if (!btn) return;
+
+      const sku = btn.getAttribute('data-sku');
+      const title = btn.getAttribute('data-title');
+      const price = Number(btn.getAttribute('data-price')) || 0;
+
+      // Match item in catalog if already loaded
+      const matchedItem = menuCatalog.find(m => m.sku === sku || m.title.toLowerCase() === title.toLowerCase());
+
+      const itemToAdd = {
+        menuItemId: matchedItem ? matchedItem._id : undefined,
+        sku: matchedItem ? matchedItem.sku : sku,
+        title: matchedItem ? matchedItem.title : title,
+        category: matchedItem ? matchedItem.category : 'soft-drinks',
+        variant: null,
+        unitPrice: matchedItem ? matchedItem.sellingPrice : price
+      };
+
+      addToCart(itemToAdd);
+      if (soundEngine && soundEngine.playItemAdd) soundEngine.playItemAdd();
+    });
+  }
+
+  // --- 📊 Table-Wise Order Tracking & Performance (Daily & Monthly) ---
+  let currentTableTrackPeriod = 'today';
+  let currentTableTrackDate = '';
+
+  async function fetchTablePerformance(period = 'today', dateStr = '') {
+    if (!tblTrackTableBody) return;
+    tblTrackTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 1.5rem; color: var(--color-foam);">Loading table performance data...</td></tr>`;
+
+    try {
+      let url = `/api/orders/tables/performance?period=${period}`;
+      if (dateStr) {
+        url += `&date=${encodeURIComponent(dateStr)}`;
+      }
+
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.success) {
+        tblTrackTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #E63946; padding: 1rem;">${data.message || 'Error loading table performance'}</td></tr>`;
+        return;
+      }
+
+      const grandRev = data.grandTotalRevenue !== undefined ? data.grandTotalRevenue : (data.summary?.totalRevenue || 0);
+      const grandOrders = data.grandTotalOrders !== undefined ? data.grandTotalOrders : (data.summary?.totalOrders || 0);
+      const tables = data.tables || [];
+      const activeTablesCount = tablesData.filter(t => t.isOccupied).length;
+
+      if (tblTrackGrandRevenue) tblTrackGrandRevenue.textContent = `₹${grandRev.toLocaleString('en-IN')}`;
+      if (tblTrackGrandOrders) tblTrackGrandOrders.textContent = `${grandOrders}`;
+      if (tblTrackActiveTablesNow) tblTrackActiveTablesNow.textContent = `${activeTablesCount}`;
+
+      if (tables.length === 0) {
+        tblTrackTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 1.5rem; color: var(--color-sand-muted);">No orders recorded for this period yet.</td></tr>`;
+        return;
+      }
+
+      let tbodyHtml = '';
+      tables.forEach(row => {
+        const tName = row.tableName || row.tableNumber;
+        const ordCount = row.orderCount !== undefined ? row.orderCount : (row.totalOrders || 0);
+        const revenue = row.totalRevenue || 0;
+        const avgBill = row.averageBill !== undefined ? row.averageBill : (row.avgOrderValue || 0);
+        const paidCount = row.paidOrders || 0;
+        const unpaidCount = row.unpaidOrders || 0;
+
+        // Check live floor occupancy from tablesData
+        const liveMatch = tablesData.find(t => t.tableNumber === tName);
+        const isOccupied = liveMatch ? liveMatch.isOccupied : row.isOccupied;
+        const activeBill = liveMatch && liveMatch.order ? liveMatch.order.finalTotalAmount : (row.activeBillAmount || 0);
+
+        const statusBadge = isOccupied 
+          ? `<span style="background: rgba(230,57,70,0.2); color: #FFB4A2; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">🔴 Occupied (₹${activeBill})</span>`
+          : `<span style="background: rgba(82,183,136,0.2); color: #74C69D; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">🟢 Available</span>`;
+
+        tbodyHtml += `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); transition: background 0.2s;" onmouseover="this.style.background='rgba(201,168,106,0.08)'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 0.6rem 0.5rem; font-weight: 700; color: var(--color-gold);">
+              ${tName}
+            </td>
+            <td style="padding: 0.6rem 0.5rem; text-align: center; font-weight: 700;">
+              ${ordCount}
+            </td>
+            <td style="padding: 0.6rem 0.5rem; text-align: right; font-weight: 800; color: #52B788;">
+              ₹${revenue.toLocaleString('en-IN')}
+            </td>
+            <td style="padding: 0.6rem 0.5rem; text-align: right; color: var(--color-foam); opacity: 0.9;">
+              ₹${avgBill.toLocaleString('en-IN')}
+            </td>
+            <td style="padding: 0.6rem 0.5rem; text-align: center; font-size: 0.75rem;">
+              <span style="color: #52B788; font-weight: 700;">${paidCount} Paid</span>
+              ${unpaidCount > 0 ? ` / <span style="color: #E63946; font-weight: 700;">${unpaidCount} Active</span>` : ''}
+            </td>
+            <td style="padding: 0.6rem 0.5rem; text-align: center; font-size: 0.75rem;">
+              ${statusBadge}
+            </td>
+          </tr>
+        `;
+      });
+
+      tblTrackTableBody.innerHTML = tbodyHtml;
+    } catch (err) {
+      tblTrackTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #E63946; padding: 1rem;">Failed to load data: ${err.message}</td></tr>`;
+    }
+  }
+
+  // Table Tracking Modal Event Listeners
+  if (btnOpenTableTrackingModal) {
+    btnOpenTableTrackingModal.addEventListener('click', () => {
+      if (tableTrackingModal) tableTrackingModal.classList.add('open');
+      setTableTrackPeriodActive(btnTblTrackToday, 'today');
+    });
+  }
+
+  function closeTableTrackingModal() {
+    if (tableTrackingModal) tableTrackingModal.classList.remove('open');
+  }
+
+  if (btnCloseTableTrackingModal) btnCloseTableTrackingModal.addEventListener('click', closeTableTrackingModal);
+  if (btnCloseTableTrackingModalBtn) btnCloseTableTrackingModalBtn.addEventListener('click', closeTableTrackingModal);
+  if (tableTrackingModal) {
+    tableTrackingModal.addEventListener('click', (e) => {
+      if (e.target === tableTrackingModal) closeTableTrackingModal();
+    });
+  }
+
+  function setTableTrackPeriodActive(activeBtn, period) {
+    [btnTblTrackToday, btnTblTrackYesterday, btnTblTrackMonth].forEach(b => {
+      if (b) b.classList.remove('active');
+    });
+    if (activeBtn) activeBtn.classList.add('active');
+    currentTableTrackPeriod = period;
+    currentTableTrackDate = '';
+    if (inputTblTrackDate) inputTblTrackDate.value = '';
+    fetchTablePerformance(period);
+  }
+
+  if (btnTblTrackToday) {
+    btnTblTrackToday.addEventListener('click', () => setTableTrackPeriodActive(btnTblTrackToday, 'today'));
+  }
+  if (btnTblTrackYesterday) {
+    btnTblTrackYesterday.addEventListener('click', () => setTableTrackPeriodActive(btnTblTrackYesterday, 'yesterday'));
+  }
+  if (btnTblTrackMonth) {
+    btnTblTrackMonth.addEventListener('click', () => setTableTrackPeriodActive(btnTblTrackMonth, 'month'));
+  }
+  if (inputTblTrackDate) {
+    inputTblTrackDate.addEventListener('change', () => {
+      const val = inputTblTrackDate.value;
+      if (val) {
+        [btnTblTrackToday, btnTblTrackYesterday, btnTblTrackMonth].forEach(b => {
+          if (b) b.classList.remove('active');
+        });
+        currentTableTrackPeriod = 'custom';
+        currentTableTrackDate = val;
+        fetchTablePerformance('custom', val);
       }
     });
   }

@@ -27,6 +27,9 @@
     </nav>
 
     <div class="header-actions">
+      <button class="btn-outline" id="btnOpenTableTrackingModal" style="border-color: #48CAE4; color: #48CAE4; display: flex; align-items: center; gap: 0.35rem; font-weight: 700; padding: 0.4rem 0.8rem; font-size: 0.8rem;" title="View Table-Wise Daily and Monthly Orders & Revenue">
+        <span>📊</span> Table Tracking
+      </button>
       <button class="btn-outline" id="btnOpenExpensesModal" style="border-color: #E63946; color: #FFB4A2; display: flex; align-items: center; gap: 0.35rem; font-weight: 700; padding: 0.4rem 0.8rem; font-size: 0.8rem;" title="Record Milk, Groceries, or Supplies bought from today's/yesterday's sales">
         <span>💸</span> Expenses (<span id="topTodayExpensesPill">₹0</span>)
       </button>
@@ -63,6 +66,73 @@
       
       <!-- VIEW 1: Menu Catalog Area -->
       <div id="viewMenuCatalog" style="display: flex; flex-direction: column; height: 100%;">
+        
+        <!-- Fast Table Switcher Strip (Always Visible - 1-Tap Switch on Mobile & Desktop) -->
+        <div class="mobile-table-strip-bar" id="mobileTableStripBar">
+          <div style="font-size: 0.72rem; color: var(--color-gold); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.85rem 0.2rem 0.85rem;">
+            <span>🪑 Switch Dining Table: <strong id="stripActiveTableLabel" style="color: #52B788;">Table 1</strong></span>
+            <span id="stripActiveTableBillBadge" style="color: var(--color-gold); font-size: 0.72rem; background: rgba(201,168,106,0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: none;">₹0</span>
+          </div>
+          <div class="mobile-table-strip" id="mobileTableStrip">
+            <!-- Dynamically populated T1 to T9 + Takeaway -->
+          </div>
+        </div>
+
+        <!-- ⚡ 1-Tap Beach Bestsellers Speed-Bar (Instant Add - No Typing or Searching Required!) -->
+        <div class="speed-bar-container" id="speedBarContainer">
+          <div class="speed-bar-label">
+            <span>⚡ 1-Tap Quick Add:</span>
+            <small style="color: var(--color-sand-muted); font-size: 0.68rem;">Tap to add immediately</small>
+          </div>
+          <div class="speed-bar-scroll" id="speedBarScroll">
+            <button class="speed-btn" data-sku="BEV-WAT-001" data-title="Kinley Water Bottle 1L" data-price="20" title="Tap to add Kinley Water Bottle">
+              <span class="speed-icon">💧</span>
+              <span class="speed-name">Kinley 1L</span>
+              <span class="speed-price">₹20 ➕</span>
+            </button>
+            <button class="speed-btn" data-sku="BEV-SOD-001" data-title="Coca-Cola Classic" data-price="40" title="Tap to add Coca-Cola">
+              <span class="speed-icon">🥤</span>
+              <span class="speed-name">Coca-Cola</span>
+              <span class="speed-price">₹40 ➕</span>
+            </button>
+            <button class="speed-btn" data-sku="BEV-SOD-003" data-title="Thums Up Thunder Can" data-price="40" title="Tap to add Thums Up">
+              <span class="speed-icon">⚡</span>
+              <span class="speed-name">Thums Up</span>
+              <span class="speed-price">₹40 ➕</span>
+            </button>
+            <button class="speed-btn" data-sku="BEV-SOD-002" data-title="Sprite Chilled Can" data-price="40" title="Tap to add Sprite">
+              <span class="speed-icon">🍋</span>
+              <span class="speed-name">Sprite</span>
+              <span class="speed-price">₹40 ➕</span>
+            </button>
+            <button class="speed-btn" data-sku="BEV-NRG-001" data-title="Red Bull Energy Drink" data-price="125" title="Tap to add Red Bull">
+              <span class="speed-icon">🐂</span>
+              <span class="speed-name">Red Bull</span>
+              <span class="speed-price">₹125 ➕</span>
+            </button>
+            <button class="speed-btn" data-sku="BEV-HOT-001" data-title="South Indian Filter Coffee" data-price="35" title="Tap to add Filter Coffee">
+              <span class="speed-icon">☕</span>
+              <span class="speed-name">Filter Coffee</span>
+              <span class="speed-price">₹35 ➕</span>
+            </button>
+            <button class="speed-btn" data-sku="BEV-COF-001" data-title="Coastal Cold Brew" data-price="120" title="Tap to add Cold Brew">
+              <span class="speed-icon">🧊</span>
+              <span class="speed-name">Cold Brew</span>
+              <span class="speed-price">₹120 ➕</span>
+            </button>
+            <button class="speed-btn" data-sku="SNK-001" data-title="Crispy Beach Fries" data-price="100" title="Tap to add Beach Fries">
+              <span class="speed-icon">🍟</span>
+              <span class="speed-name">Beach Fries</span>
+              <span class="speed-price">₹100 ➕</span>
+            </button>
+            <button class="speed-btn" data-sku="SHK-CLS-001" data-title="Oreo &amp; Cream Shake" data-price="140" title="Tap to add Oreo Shake">
+              <span class="speed-icon">🍫</span>
+              <span class="speed-name">Oreo Shake</span>
+              <span class="speed-price">₹140 ➕</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Category Quick Filter Bar -->
         <div class="category-filter-bar" id="categoryFilterBar">
           <button class="cat-pill active" data-cat="all">🌟 All Offerings</button>
@@ -577,6 +647,75 @@
         <button class="btn-primary" id="btnConfirmMergeTables" style="background: var(--color-gold); color: #051622; font-weight: 700; padding: 0.5rem 1.25rem;">
           🔀 Merge Tables into One Bill
         </button>
+      </div>
+  <!-- Table-Wise Order Tracking & Performance Modal (Daily & Monthly) -->
+  <div class="modal-overlay" id="tableTrackingModal">
+    <div class="modal-content" style="max-width: 720px; width: 95%;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.3rem;">📊</span>
+          <div>
+            <h3 style="color: var(--color-gold); font-size: 1.15rem; margin: 0;">Table-Wise Order &amp; Revenue Tracking</h3>
+            <span style="font-size: 0.75rem; color: var(--color-foam); opacity: 0.85;">Track which table gets how many orders (Daily &amp; Monthly)</span>
+          </div>
+        </div>
+        <button class="modal-close" id="btnCloseTableTrackingModal">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        
+        <!-- Filter Controls: Today, Yesterday, This Month, Date Picker -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; background: rgba(0,0,0,0.25); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+            <button class="pill-btn active" id="btnTblTrackToday">Today</button>
+            <button class="pill-btn" id="btnTblTrackYesterday">Yesterday</button>
+            <button class="pill-btn" id="btnTblTrackMonth">This Month</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <label style="font-size: 0.75rem; color: var(--color-gold); font-weight: 700;">Date:</label>
+            <input type="date" id="inputTblTrackDate" class="cart-input" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto; color: #FFF; background: #0A1626; border: 1px solid var(--color-gold);">
+          </div>
+        </div>
+
+        <!-- Grand KPI Summary for Period -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.6rem; margin-bottom: 1rem;">
+          <div style="background: rgba(11,37,69,0.8); border: 1px solid var(--color-gold); border-radius: var(--radius-sm); padding: 0.6rem; text-align: center;">
+            <span style="font-size: 0.7rem; color: var(--color-foam); text-transform: uppercase;">Total Sales</span>
+            <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: var(--color-gold);" id="tblTrackGrandRevenue">₹0</div>
+          </div>
+          <div style="background: rgba(11,37,69,0.8); border: 1px solid #52B788; border-radius: var(--radius-sm); padding: 0.6rem; text-align: center;">
+            <span style="font-size: 0.7rem; color: var(--color-foam); text-transform: uppercase;">Total Orders</span>
+            <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: #52B788;" id="tblTrackGrandOrders">0</div>
+          </div>
+          <div style="background: rgba(11,37,69,0.8); border: 1px solid #48CAE4; border-radius: var(--radius-sm); padding: 0.6rem; text-align: center;">
+            <span style="font-size: 0.7rem; color: var(--color-foam); text-transform: uppercase;">Active Tables Now</span>
+            <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: #48CAE4;" id="tblTrackActiveTablesNow">0</div>
+          </div>
+        </div>
+
+        <!-- Table Performance Table -->
+        <div style="overflow-x: auto;">
+          <table class="data-table" style="width: 100%; font-size: 0.8rem; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--color-gold); background: rgba(0,0,0,0.3);">
+                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--color-gold);">Dining Table</th>
+                <th style="padding: 0.6rem 0.5rem; text-align: center; color: var(--color-gold);">Orders</th>
+                <th style="padding: 0.6rem 0.5rem; text-align: right; color: var(--color-gold);">Total Sales</th>
+                <th style="padding: 0.6rem 0.5rem; text-align: right; color: var(--color-gold);">Avg Bill</th>
+                <th style="padding: 0.6rem 0.5rem; text-align: center; color: var(--color-gold);">Paid / Unpaid</th>
+                <th style="padding: 0.6rem 0.5rem; text-align: center; color: var(--color-gold);">Current Floor Status</th>
+              </tr>
+            </thead>
+            <tbody id="tblTrackTableBody">
+              <tr>
+                <td colspan="6" style="text-align: center; padding: 1.5rem; color: var(--color-foam);">Loading table performance data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end;">
+        <button class="btn-outline" id="btnCloseTableTrackingModalBtn">Close</button>
       </div>
     </div>
   </div>

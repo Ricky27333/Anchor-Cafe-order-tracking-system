@@ -1,6 +1,8 @@
 const Order = require('../models/Order');
 const { emitOrderCreated, emitStatusChange } = require('../sockets/socketHandler');
 const { syncOrderToOracle, syncPaymentToOracle } = require('../services/oracleSyncService');
+const localDataStore = require('../services/localDataStore');
+const mongoose = require('mongoose');
 
 /**
  * Generate sequential order number for today (e.g. AC-20261022-0001)
@@ -12,14 +14,22 @@ async function generateOrderNumber() {
   const day = String(now.getDate()).padStart(2, '0');
   const datePrefix = `${year}${month}${day}`;
 
-  const startOfDay = new Date(year, now.getMonth(), now.getDate(), 0, 0, 0);
-  const endOfDay = new Date(year, now.getMonth(), now.getDate(), 23, 59, 59);
+  let sequence = 1;
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    try {
+      const startOfDay = new Date(year, now.getMonth(), now.getDate(), 0, 0, 0);
+      const endOfDay = new Date(year, now.getMonth(), now.getDate(), 23, 59, 59);
+      const countToday = await Order.countDocuments({
+        createdAt: { $gte: startOfDay, $lte: endOfDay }
+      }).maxTimeMS(1000);
+      sequence = countToday + 1;
+    } catch (e) {
+      sequence = localDataStore.getOrders().length + 1;
+    }
+  } else {
+    sequence = localDataStore.getOrders().length + 1;
+  }
 
-  const countToday = await Order.countDocuments({
-    createdAt: { $gte: startOfDay, $lte: endOfDay }
-  });
-
-  const sequence = countToday + 1;
   const formattedSeq = String(sequence).padStart(4, '0');
   const orderNumber = `AC-${datePrefix}-${formattedSeq}`;
 
@@ -46,7 +56,17 @@ async function createOrder(req, res) {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
     }
 
-    const { orderNumber, sequence } = await generateOrderNumber();
+    let orderNumber, sequence;
+    try {
+      const numRes = await generateOrderNumber();
+      orderNumber = numRes.orderNumber;
+      sequence = numRes.sequence;
+    } catch (numErr) {
+      const now = new Date();
+      const datePrefix = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      sequence = localDataStore.getOrders().length + 1;
+      orderNumber = `AC-${datePrefix}-${String(sequence).padStart(4, '0')}`;
+    }
 
     // Check if tableNumber is active and append items to running tab
     const targetTable = locationDetails.tableNumber;
@@ -77,12 +97,26 @@ async function createOrder(req, res) {
     });
 
     if (targetTable && shouldAppend) {
-      const tableRegex = new RegExp(`^${targetTable.trim()}$`, 'i');
-      const existingOrder = await Order.findOne({
-        'locationDetails.tableNumber': { $regex: tableRegex },
-        paymentStatus: { $ne: 'PAID' },
-        orderStatus: { $ne: 'CANCELLED' }
-      });
+      let existingOrder = null;
+      if (mongoose.connection && mongoose.connection.readyState === 1) {
+        try {
+          const tableRegex = new RegExp(`^${targetTable.trim()}$`, 'i');
+          existingOrder = await Order.findOne({
+            'locationDetails.tableNumber': { $regex: tableRegex },
+            paymentStatus: { $ne: 'PAID' },
+            orderStatus: { $ne: 'CANCELLED' }
+          }).maxTimeMS(1200);
+        } catch (e) {
+          existingOrder = null;
+        }
+      }
+
+      if (!existingOrder) {
+        const localActive = localDataStore.getActiveOrdersForTable(targetTable);
+        if (localActive.length > 0) {
+          existingOrder = localActive[0];
+        }
+      }
 
       if (existingOrder) {
         validatedItems.forEach(it => {
@@ -114,7 +148,15 @@ async function createOrder(req, res) {
           existingOrder.paymentMethod = paymentMethod;
         }
 
-        const updatedOrder = await existingOrder.save();
+        let updatedOrder = existingOrder;
+        if (existingOrder.save) {
+          try {
+            updatedOrder = await existingOrder.save();
+          } catch (e) {}
+        }
+        // Always persist to localDataStore
+        localDataStore.saveOrder(updatedOrder.toObject ? updatedOrder.toObject() : updatedOrder);
+
         emitOrderCreated(updatedOrder);
         syncOrderToOracle(updatedOrder).catch(() => {});
 
@@ -128,7 +170,7 @@ async function createOrder(req, res) {
 
     const finalTotalAmount = Math.max(0, subtotalAmount - (Number(discountAmount) || 0));
 
-    const newOrder = new Order({
+    const orderData = {
       orderNumber,
       dailySequence: sequence,
       orderType,
@@ -150,10 +192,22 @@ async function createOrder(req, res) {
         placedAt: new Date()
       },
       cashierUser,
-      kitchenNotes
-    });
+      kitchenNotes,
+      createdAt: new Date().toISOString()
+    };
 
-    const savedOrder = await newOrder.save();
+    let savedOrder = orderData;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const newOrder = new Order(orderData);
+        savedOrder = await newOrder.save();
+      } catch (e) {
+        console.warn('⚠️ Mongoose save failed, using local store fallback:', e.message);
+      }
+    }
+
+    // Always persist to fail-safe storage
+    localDataStore.saveOrder(savedOrder.toObject ? savedOrder.toObject() : savedOrder);
     syncOrderToOracle(savedOrder).catch(() => {});
 
     // If order was marked as PAID immediately at checkout, record payment transaction
@@ -167,22 +221,32 @@ async function createOrder(req, res) {
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const paymentTransactionId = `TXN-${year}${month}${day}-${randomSuffix}`;
 
-        const payment = new Payment({
+        const validMethods = ['CASH', 'PHONEPE', 'GPAY', 'PAYTM', 'UPI', 'UPI_PHONEPE', 'UPI_GPAY', 'UPI_PAYTM', 'UPI_QR', 'POS_CARD', 'CARD', 'CUSTOMER_TAB'];
+        let normMethod = String(paymentMethod || 'PHONEPE').toUpperCase().trim();
+        if (normMethod === 'GOOGLEPAY') normMethod = 'GPAY';
+        const finalPaymentMethod = validMethods.includes(normMethod) ? normMethod : 'PHONEPE';
+
+        const paymentData = {
           paymentTransactionId,
           orderId: savedOrder._id,
           orderNumber: savedOrder.orderNumber,
           amountReceived: savedOrder.finalTotalAmount,
-          paymentMethod: paymentMethod || 'PHONEPE',
+          paymentMethod: finalPaymentMethod,
           cashTendered: savedOrder.finalTotalAmount,
           changeReturned: 0,
           status: 'SUCCESS',
           processedBy: cashierUser || 'Counter 1'
-        });
-        await payment.save();
-        syncPaymentToOracle(payment).catch(() => {});
+        };
 
-        const { emitPaymentRecorded } = require('../sockets/socketHandler');
-        emitPaymentRecorded(payment, savedOrder);
+        if (mongoose.connection && mongoose.connection.readyState === 1) {
+          try {
+            const payment = new Payment(paymentData);
+            await payment.save();
+            syncPaymentToOracle(payment).catch(() => {});
+            const { emitPaymentRecorded } = require('../sockets/socketHandler');
+            emitPaymentRecorded(payment, savedOrder);
+          } catch (payErr) {}
+        }
       } catch (payErr) {
         console.error('Error creating payment record:', payErr);
       }
@@ -489,7 +553,6 @@ async function decreaseTableCount(req, res) {
  */
 async function getTablesOverview(req, res) {
   try {
-    const mongoose = require('mongoose');
     const totalTables = await getConfiguredTableCount();
 
     let activeOrders = [];
@@ -505,17 +568,30 @@ async function getTablesOverview(req, res) {
               ]
             }
           ]
-        }).sort({ createdAt: -1 }).maxTimeMS(1500);
+        }).sort({ createdAt: -1 }).maxTimeMS(1200);
       } catch (findErr) {
         activeOrders = [];
       }
     }
 
+    // Merge with localDataStore active orders so no table order is ever lost
+    const localActive = localDataStore.getOrders().filter(o => 
+      o.orderStatus !== 'CANCELLED' && (o.paymentStatus !== 'PAID' || o.orderStatus !== 'SERVED')
+    );
+
+    const mergedOrdersMap = new Map();
+    activeOrders.forEach(o => mergedOrdersMap.set(o.orderNumber, o));
+    localActive.forEach(o => {
+      if (!mergedOrdersMap.has(o.orderNumber)) mergedOrdersMap.set(o.orderNumber, o);
+    });
+
+    const combinedActiveOrders = Array.from(mergedOrdersMap.values());
+
     const tables = [];
     for (let i = 1; i <= totalTables; i++) {
       const tableLabel = `Table ${i}`;
       // Match variants like "Table 1", "T1", "Table 01"
-      const activeOrder = activeOrders.find(o => {
+      const activeOrder = combinedActiveOrders.find(o => {
         const tbl = (o.locationDetails?.tableNumber || '').trim().toLowerCase();
         return tbl === tableLabel.toLowerCase() || 
                tbl === `t${i}` || 
@@ -532,7 +608,7 @@ async function getTablesOverview(req, res) {
     }
 
     // Active Takeaway Orders
-    const activeTakeaways = activeOrders.filter(o => {
+    const activeTakeaways = combinedActiveOrders.filter(o => {
       const tbl = (o.locationDetails?.tableNumber || '').trim().toLowerCase();
       return o.orderType === 'TAKEAWAY' || tbl.includes('takeaway') || tbl.includes('pickup') || tbl === 'pick';
     });
@@ -555,12 +631,22 @@ async function getTablesOverview(req, res) {
 async function settleTablePayment(req, res) {
   try {
     const { orderId, paymentMethod = 'PHONEPE', cashTendered = 0, changeReturned = 0, notes = '' } = req.body;
-    const order = await Order.findById(orderId);
+    let order = null;
+
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        order = await Order.findById(orderId).maxTimeMS(1200);
+      } catch (e) {}
+    }
+
+    if (!order) {
+      order = localDataStore.getOrderById(orderId);
+    }
+
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    const Payment = require('../models/Payment');
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -573,7 +659,7 @@ async function settleTablePayment(req, res) {
     if (normMethod === 'GOOGLEPAY') normMethod = 'GPAY';
     const finalPaymentMethod = validMethods.includes(normMethod) ? normMethod : 'PHONEPE';
 
-    const payment = new Payment({
+    const paymentData = {
       paymentTransactionId,
       orderId: order._id,
       orderNumber: order.orderNumber,
@@ -583,28 +669,156 @@ async function settleTablePayment(req, res) {
       changeReturned: Number(changeReturned) || 0,
       status: 'SUCCESS',
       processedBy: 'Counter 1'
-    });
+    };
 
-    await payment.save();
-    syncPaymentToOracle(payment).catch(() => {});
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const Payment = require('../models/Payment');
+        const payment = new Payment(paymentData);
+        await payment.save();
+        syncPaymentToOracle(payment).catch(() => {});
+      } catch (e) {}
+    }
 
     order.paymentStatus = 'PAID';
-    order.paymentMethod = paymentMethod.includes('CASH') ? 'CASH' : (paymentMethod.includes('CARD') ? 'CARD' : 'UPI_QR');
+    order.paymentMethod = finalPaymentMethod;
     order.orderStatus = 'SERVED';
     if (!order.timestamps) order.timestamps = {};
     order.timestamps.completedAt = new Date();
-    await order.save();
+
+    if (order.save) {
+      try { await order.save(); } catch (e) {}
+    }
+    localDataStore.saveOrder(order.toObject ? order.toObject() : order);
     syncOrderToOracle(order).catch(() => {});
 
     const { emitPaymentRecorded, emitStatusChange } = require('../sockets/socketHandler');
-    emitPaymentRecorded(payment, order);
+    emitPaymentRecorded(paymentData, order);
     emitStatusChange(order);
 
     res.json({
       success: true,
-      message: `Table order ${order.orderNumber} settled successfully via ${paymentMethod}! Table is now available.`,
+      message: `Table order ${order.orderNumber} settled successfully via ${finalPaymentMethod}! Table is now available.`,
       order,
-      payment
+      payment: paymentData
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+/**
+ * Get Table-Wise Performance Analytics (Daily & Monthly breakdown)
+ * Query params: period=today | yesterday | month | all, date=YYYY-MM-DD
+ */
+async function getTablePerformance(req, res) {
+  try {
+    const { period = 'today', date } = req.query;
+    const now = new Date();
+    let startDate, endDate;
+
+    if (date) {
+      const [y, m, d] = date.split('-').map(Number);
+      startDate = new Date(y, m - 1, d, 0, 0, 0, 0);
+      endDate = new Date(y, m - 1, d, 23, 59, 59, 999);
+    } else if (period === 'yesterday') {
+      const yDate = new Date(now);
+      yDate.setDate(yDate.getDate() - 1);
+      startDate = new Date(yDate.getFullYear(), yDate.getMonth(), yDate.getDate(), 0, 0, 0, 0);
+      endDate = new Date(yDate.getFullYear(), yDate.getMonth(), yDate.getDate(), 23, 59, 59, 999);
+    } else if (period === 'month') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    } else { // 'today' default
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    }
+
+    let allOrders = [];
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        allOrders = await Order.find({
+          createdAt: { $gte: startDate, $lte: endDate },
+          orderStatus: { $ne: 'CANCELLED' }
+        }).sort({ createdAt: -1 }).maxTimeMS(1500);
+      } catch (e) {
+        allOrders = [];
+      }
+    }
+
+    const localOrders = localDataStore.getOrders().filter(o => {
+      const cAt = new Date(o.createdAt);
+      return cAt >= startDate && cAt <= endDate && o.orderStatus !== 'CANCELLED';
+    });
+
+    const orderMap = new Map();
+    allOrders.forEach(o => orderMap.set(o.orderNumber, o));
+    localOrders.forEach(o => {
+      if (!orderMap.has(o.orderNumber)) orderMap.set(o.orderNumber, o);
+    });
+
+    const ordersInPeriod = Array.from(orderMap.values());
+    const totalTables = await getConfiguredTableCount();
+
+    const tablesReport = [];
+    let grandRevenue = 0;
+    let grandOrders = 0;
+
+    for (let i = 1; i <= totalTables; i++) {
+      const tLabel = `Table ${i}`;
+      const tOrders = ordersInPeriod.filter(o => {
+        const tbl = (o.locationDetails?.tableNumber || '').trim().toLowerCase();
+        return tbl === tLabel.toLowerCase() || tbl === `t${i}` || tbl === `table 0${i}` || tbl === `${i}`;
+      });
+
+      const rev = tOrders.reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+      const itemsCount = tOrders.reduce((acc, o) => acc + (Number(o.totalItemCount) || 0), 0);
+      const paidOrders = tOrders.filter(o => o.paymentStatus === 'PAID').length;
+      const unpaidOrders = tOrders.filter(o => o.paymentStatus !== 'PAID').length;
+
+      grandRevenue += rev;
+      grandOrders += tOrders.length;
+
+      tablesReport.push({
+        tableNumber: tLabel,
+        tableId: i,
+        orderCount: tOrders.length,
+        totalRevenue: rev,
+        itemsCount,
+        averageBill: tOrders.length > 0 ? Math.round(rev / tOrders.length) : 0,
+        paidOrders,
+        unpaidOrders
+      });
+    }
+
+    // Takeaways breakdown
+    const takeawayOrders = ordersInPeriod.filter(o => {
+      const tbl = (o.locationDetails?.tableNumber || '').trim().toLowerCase();
+      return o.orderType === 'TAKEAWAY' || tbl.includes('takeaway') || tbl.includes('pickup');
+    });
+    const takeawayRev = takeawayOrders.reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+    grandRevenue += takeawayRev;
+    grandOrders += takeawayOrders.length;
+
+    tablesReport.push({
+      tableNumber: 'Takeaway',
+      tableId: 0,
+      orderCount: takeawayOrders.length,
+      totalRevenue: takeawayRev,
+      itemsCount: takeawayOrders.reduce((acc, o) => acc + (Number(o.totalItemCount) || 0), 0),
+      averageBill: takeawayOrders.length > 0 ? Math.round(takeawayRev / takeawayOrders.length) : 0,
+      paidOrders: takeawayOrders.filter(o => o.paymentStatus === 'PAID').length,
+      unpaidOrders: takeawayOrders.filter(o => o.paymentStatus !== 'PAID').length
+    });
+
+    res.json({
+      success: true,
+      period,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      grandTotalRevenue: grandRevenue,
+      grandTotalOrders: grandOrders,
+      tables: tablesReport
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -710,5 +924,6 @@ module.exports = {
   settleTablePayment,
   increaseTableCount,
   decreaseTableCount,
-  mergeTableOrders
+  mergeTableOrders,
+  getTablePerformance
 };

@@ -80,6 +80,18 @@ async function getMonthlyAnalyticsData(year, month) {
               count: { $sum: '$items.quantity' }
             }
           }
+        ],
+        // Table-Wise Breakdown (Which table gets the orders)
+        tableBreakdown: [
+          {
+            $group: {
+              _id: '$locationDetails.tableNumber',
+              revenue: { $sum: '$finalTotalAmount' },
+              orderCount: { $sum: 1 },
+              totalItems: { $sum: '$totalItemCount' }
+            }
+          },
+          { $sort: { revenue: -1 } }
         ]
       }
     }
