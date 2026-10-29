@@ -69,8 +69,16 @@
         <!-- Fast Table Switcher Strip (Always Visible - 1-Tap Switch on Mobile & Desktop) -->
         <div class="mobile-table-strip-bar" id="mobileTableStripBar">
           <div style="font-size: 0.72rem; color: var(--color-gold); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.85rem 0.2rem 0.85rem;">
-            <span>🪑 Switch Dining Table: <strong id="stripActiveTableLabel" style="color: #52B788;">Table 1</strong></span>
-            <span id="stripActiveTableBillBadge" style="color: var(--color-gold); font-size: 0.72rem; background: rgba(201,168,106,0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: none;">₹0</span>
+            <span style="display: flex; align-items: center; gap: 0.4rem;">
+              <span>🪑 Allotted To:</span>
+              <strong id="stripActiveTableLabel" style="color: #52B788; font-size: 0.85rem;">Table 1</strong>
+            </span>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              <span id="stripActiveTableBillBadge" style="color: var(--color-gold); font-size: 0.72rem; background: rgba(201,168,106,0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: none;">₹0</span>
+              <button class="btn-open-table-sheet-top" id="btnOpenTableSheetTop" title="Open 9-Tables Selection Drawer">
+                <span>🪑 Switch Table 🔼</span>
+              </button>
+            </div>
           </div>
           <div class="mobile-table-strip" id="mobileTableStrip">
             <!-- Dynamically populated T1 to T9 + Takeaway -->
@@ -145,13 +153,18 @@
           <button class="cat-pill" data-cat="beach-services">🌊 Beach Experiences</button>
         </div>
 
-        <!-- Toolbar: Search & Count -->
+        <!-- Toolbar: Search & View Mode Toggle -->
         <div class="catalog-toolbar">
           <div class="search-box">
             <span class="search-icon">🔍</span>
             <input type="text" id="searchInput" placeholder="Search water bottle, Thums Up, Red Bull, coffee, fries...">
           </div>
-          <div class="catalog-stats" id="catalogStats">Loading catalog...</div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <div class="catalog-stats" id="catalogStats">Loading catalog...</div>
+            <button class="btn-grid-toggle" id="btnToggleGridView" title="Toggle between Grid View and Compact Mobile List View">
+              <span id="gridToggleIcon">📋</span> <span id="gridToggleText">List</span>
+            </button>
+          </div>
         </div>
 
         <!-- Dynamic Items Grid -->
@@ -326,7 +339,11 @@
   <!-- Floating Quick Cart Bar for Android & Mobile Devices -->
   <div class="mobile-floating-cart" id="mobileFloatingCart">
     <div class="mobile-cart-info">
-      <span class="mobile-cart-table-badge" id="mobileCartTableLabel">Table 1</span>
+      <button class="mobile-cart-table-btn" id="btnOpenTableBottomSheet" title="Tap to select or allot table (Table 1 to 9)">
+        <span class="m-tbl-icon">🪑</span>
+        <span id="mobileCartTableLabel">Table 1</span>
+        <span class="m-tbl-arrow">▲ Allot</span>
+      </button>
       <span class="mobile-cart-summary">
         <span id="mobileCartCount">0</span> items &bull; <strong id="mobileCartTotal" style="color: var(--color-gold);">₹0</strong>
       </span>
@@ -335,6 +352,36 @@
       <span>Review &amp; Pay</span>
       <span style="font-size: 1.15rem; line-height: 1;">➔</span>
     </button>
+  </div>
+
+  <!-- Native Mobile Table Selector (Scroll-Up Bottom Sheet Drawer) -->
+  <div class="table-sheet-backdrop" id="tableSheetBackdrop"></div>
+  <div class="mobile-table-bottom-sheet" id="mobileTableBottomSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTableTitle">
+    <div class="table-sheet-header">
+      <div class="table-sheet-drag-handle"></div>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin-top: 0.25rem;">
+        <div>
+          <h3 id="sheetTableTitle" style="margin: 0; color: var(--color-gold); font-size: 1.15rem; font-family: var(--font-heading); display: flex; align-items: center; gap: 0.4rem;">
+            <span>🪑</span> Allot Order to Table (T1 - T9)
+          </h3>
+          <span style="font-size: 0.75rem; color: var(--color-foam); opacity: 0.85;">
+            Tap any table below to allot order &amp; track running bill:
+          </span>
+        </div>
+        <button class="btn-close-table-sheet" id="btnCloseTableBottomSheet" title="Close table selector">&times;</button>
+      </div>
+    </div>
+
+    <!-- Active Selection Info Banner in Sheet -->
+    <div class="table-sheet-active-banner">
+      <span>Currently Allotted to: <strong id="sheetActiveTableText" style="color: #52B788;">Table 1</strong></span>
+      <span id="sheetActiveTableState" style="font-size: 0.72rem; color: var(--color-gold);">Ready for Order</span>
+    </div>
+
+    <!-- Scrollable Tables Grid for Mobile Thumbs -->
+    <div class="table-sheet-grid" id="tableSheetGrid">
+      <!-- Populated dynamically with Table 1 to 9 + Takeaway cards -->
+    </div>
   </div>
 
   <!-- Mobile Cart Drawer Backdrop Overlay -->

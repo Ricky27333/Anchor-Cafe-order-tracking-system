@@ -252,6 +252,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderTablePills();
         renderMobileTableStrip();
+        if (typeof mobileTableBottomSheet !== 'undefined' && mobileTableBottomSheet && mobileTableBottomSheet.classList.contains('open')) {
+          renderTableBottomSheet();
+        }
         renderTablesFloorGrid();
         renderTakeawaysFloorGrid();
         updateActiveTableNotice();
@@ -940,6 +943,16 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedTable = tableName;
     if (selectedTableDisplay) selectedTableDisplay.value = tableName;
     if (topActiveTableLabel) topActiveTableLabel.textContent = tableName;
+    
+    // Update mobile bottom bar badge
+    const mobileCartTableLabel = document.getElementById('mobileCartTableLabel');
+    if (mobileCartTableLabel) mobileCartTableLabel.textContent = tableName;
+    
+    // Update top strip label
+    if (stripActiveTableLabel) stripActiveTableLabel.textContent = tableName;
+
+    // Update active sheet text if open
+    if (sheetActiveTableText) sheetActiveTableText.textContent = tableName;
 
     document.querySelectorAll('.table-pill').forEach(btn => {
       if (btn.getAttribute('data-table') === tableName) {
@@ -950,6 +963,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     renderMobileTableStrip();
+    if (mobileTableBottomSheet && mobileTableBottomSheet.classList.contains('open')) {
+      renderTableBottomSheet();
+    }
     updateActiveTableNotice();
     renderCart();
   }
@@ -1078,7 +1094,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <p class="card-desc">${item.servingSize ? `<strong>${item.servingSize}</strong> &bull; ` : ''}${item.description || ''}</p>
         <div class="card-bottom">
           ${priceHtml}
-          <button class="btn-add-item" title="Add to Table Order">${item.hasVariants ? '⚡' : '+'}</button>
+          <button class="btn-add-item" title="Add to Table Order" aria-label="Add ${item.title}">${item.hasVariants ? '⚡ Options' : '➕'}</button>
         </div>
       `;
 
@@ -1090,14 +1106,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
 
-      // ONLY clicking the plus button adds the item to the order (not anywhere on card)
-      const btnAdd = card.querySelector('.btn-add-item');
-      if (btnAdd) {
-        btnAdd.addEventListener('click', (e) => {
-          e.stopPropagation();
-          handleItemSelect(item);
-        });
-      }
+      // Tapping anywhere on the card OR the prominent ➕ button adds the item to the order
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-edit-price')) return;
+        handleItemSelect(item);
+        // Visual tap flash feedback
+        card.style.borderColor = '#52B788';
+        card.style.boxShadow = '0 0 15px rgba(82, 183, 136, 0.4)';
+        setTimeout(() => {
+          card.style.borderColor = '';
+          card.style.boxShadow = '';
+        }, 300);
+      });
 
       itemsGrid.appendChild(card);
     });
@@ -1631,6 +1651,151 @@ document.addEventListener('DOMContentLoaded', () => {
   if (tabBtnOpenCart) tabBtnOpenCart.addEventListener('click', openMobileCart);
   if (btnCloseMobileCart) btnCloseMobileCart.addEventListener('click', closeMobileCart);
   if (cartMobileBackdrop) cartMobileBackdrop.addEventListener('click', closeMobileCart);
+
+  // ==========================================================================
+  // 🪑 Native Mobile Table Selector (Scroll-Up Bottom Sheet Drawer)
+  // ==========================================================================
+  const mobileTableBottomSheet = document.getElementById('mobileTableBottomSheet');
+  const tableSheetBackdrop = document.getElementById('tableSheetBackdrop');
+  const btnCloseTableBottomSheet = document.getElementById('btnCloseTableBottomSheet');
+  const btnOpenTableBottomSheet = document.getElementById('btnOpenTableBottomSheet');
+  const btnOpenTableSheetTop = document.getElementById('btnOpenTableSheetTop');
+  const tableSheetGrid = document.getElementById('tableSheetGrid');
+  const sheetActiveTableText = document.getElementById('sheetActiveTableText');
+  const sheetActiveTableState = document.getElementById('sheetActiveTableState');
+  const btnToggleGridView = document.getElementById('btnToggleGridView');
+  const gridToggleIcon = document.getElementById('gridToggleIcon');
+  const gridToggleText = document.getElementById('gridToggleText');
+
+  function openTableBottomSheet() {
+    if (!mobileTableBottomSheet) return;
+    renderTableBottomSheet();
+    mobileTableBottomSheet.classList.add('open');
+    if (tableSheetBackdrop) tableSheetBackdrop.classList.add('open');
+    soundEngine.playChime();
+  }
+
+  function closeTableBottomSheet() {
+    if (mobileTableBottomSheet) mobileTableBottomSheet.classList.remove('open');
+    if (tableSheetBackdrop) tableSheetBackdrop.classList.remove('open');
+  }
+
+  if (btnOpenTableBottomSheet) btnOpenTableBottomSheet.addEventListener('click', openTableBottomSheet);
+  if (btnOpenTableSheetTop) btnOpenTableSheetTop.addEventListener('click', openTableBottomSheet);
+  if (btnCloseTableBottomSheet) btnCloseTableBottomSheet.addEventListener('click', closeTableBottomSheet);
+  if (tableSheetBackdrop) tableSheetBackdrop.addEventListener('click', closeTableBottomSheet);
+
+  // Render cards in the scroll-up table bottom sheet
+  function renderTableBottomSheet() {
+    if (!tableSheetGrid) return;
+    tableSheetGrid.innerHTML = '';
+
+    if (sheetActiveTableText) sheetActiveTableText.textContent = selectedTable;
+    if (sheetActiveTableState) {
+      const activeOrder = getActiveOrderForSelectedTable();
+      if (activeOrder) {
+        sheetActiveTableState.textContent = `Running Bill: ₹${activeOrder.finalTotalAmount} (${activeOrder.totalItemCount} items)`;
+      } else {
+        const draft = tableCarts[selectedTable] || [];
+        if (draft.length > 0) {
+          let draftQty = 0;
+          draft.forEach(d => { draftQty += d.quantity; });
+          sheetActiveTableState.textContent = `Draft: ${draftQty} items added in cart`;
+        } else {
+          sheetActiveTableState.textContent = 'Vacant Table (Ready for New Guests)';
+        }
+      }
+    }
+
+    for (let i = 1; i <= currentTotalTables; i++) {
+      const tName = `Table ${i}`;
+      const matched = tablesData.find(t => t.tableNumber === tName);
+      const isOcc = matched && matched.isOccupied;
+      const isSelected = selectedTable === tName;
+      const draft = tableCarts[tName] || [];
+
+      const card = document.createElement('div');
+      card.className = `table-sheet-card ${isSelected ? 'active-allotted' : ''} ${isOcc ? 'occupied' : ''}`;
+
+      let statusBadge = '<span class="tsc-badge free">🟢 Available</span>';
+      let infoText = 'Table is free. Tap to allot new customer order.';
+      let actionBtnText = 'Allot to ' + tName;
+      let actionBtnClass = 'allot';
+
+      if (isOcc && matched.order) {
+        statusBadge = '<span class="tsc-badge dining">🔴 Dining</span>';
+        infoText = `👤 ${matched.order.locationDetails?.customerName || 'Guest'}<br><span class="tsc-bill">₹${matched.order.finalTotalAmount}</span> (${matched.order.totalItemCount} items)`;
+        actionBtnText = isSelected ? '✓ Active Table' : '➕ Add to ' + tName;
+        actionBtnClass = isSelected ? 'selected' : 'add-more';
+      } else if (draft.length > 0) {
+        let draftQty = 0;
+        let draftAmt = 0;
+        draft.forEach(d => { draftQty += d.quantity; draftAmt += d.unitPrice * d.quantity; });
+        statusBadge = '<span class="tsc-badge" style="background: rgba(201,168,106,0.25); color: var(--color-gold); border: 1px solid var(--color-gold);">🟡 Draft Cart</span>';
+        infoText = `<span style="color: var(--color-gold); font-weight: 700;">${draftQty} items</span> in cart (₹${draftAmt})`;
+        actionBtnText = isSelected ? '✓ Currently Allotted' : 'Resume ' + tName;
+        actionBtnClass = 'selected';
+      }
+
+      if (isSelected) {
+        statusBadge += ' <span class="tsc-badge selected">✓ SELECTED</span>';
+      }
+
+      card.innerHTML = `
+        <div class="tsc-top">
+          <span class="tsc-name">🪑 ${tName}</span>
+          <div style="display: flex; gap: 0.25rem; align-items: center;">${statusBadge}</div>
+        </div>
+        <div class="tsc-info">${infoText}</div>
+        <button class="tsc-action-btn ${actionBtnClass}" type="button">
+          ${isSelected ? `✓ Allotted to ${tName}` : actionBtnText}
+        </button>
+      `;
+
+      card.addEventListener('click', () => {
+        selectTable(tName);
+        closeTableBottomSheet();
+        showToast(`🪑 Order Allotted to ${tName}! Tap any item to add.`, 'success');
+        soundEngine.playChime();
+      });
+
+      tableSheetGrid.appendChild(card);
+    }
+
+    // Add Takeaway card to sheet
+    const isTkSelected = selectedTable === 'Takeaway';
+    const tkCount = activeTakeawaysData.length;
+    const tkCard = document.createElement('div');
+    tkCard.className = `table-sheet-card ${isTkSelected ? 'active-allotted' : ''} ${tkCount > 0 ? 'occupied' : ''}`;
+    tkCard.innerHTML = `
+      <div class="tsc-top">
+        <span class="tsc-name" style="color: #48CAE4;">🛍️ Takeaway</span>
+        <span class="tsc-badge ${tkCount > 0 ? 'dining' : 'free'}">${tkCount > 0 ? `${tkCount} In Progress` : 'Walk-in Parcel'}</span>
+      </div>
+      <div class="tsc-info">Parcel / Beach stroll orders without a seated table.</div>
+      <button class="tsc-action-btn ${isTkSelected ? 'selected' : 'allot'}" type="button">
+        ${isTkSelected ? '✓ Selected Takeaway' : 'Allot to Takeaway'}
+      </button>
+    `;
+    tkCard.addEventListener('click', () => {
+      selectTable('Takeaway');
+      closeTableBottomSheet();
+      showToast(`🛍️ Allotted to Takeaway!`, 'info');
+      soundEngine.playChime();
+    });
+    tableSheetGrid.appendChild(tkCard);
+  }
+
+  // Toggle between Grid View and Compact List View on Mobile
+  if (btnToggleGridView) {
+    btnToggleGridView.addEventListener('click', () => {
+      if (!itemsGrid) return;
+      const isList = itemsGrid.classList.toggle('list-view');
+      if (gridToggleIcon) gridToggleIcon.textContent = isList ? '📱' : '📋';
+      if (gridToggleText) gridToggleText.textContent = isList ? 'Grid' : 'List';
+      showToast(isList ? 'Switched to Compact List View' : 'Switched to Grid View', 'info');
+    });
+  }
 
   // --- Link / Merge Tables Modal (Party of 40 on Multiple Tables) ---
   const linkTablesModal = document.getElementById('linkTablesModal');

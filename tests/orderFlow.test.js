@@ -3,9 +3,14 @@ const app = require('../src/app');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
+const localDataStore = require('../src/services/localDataStore');
+
 let mongoServer;
 
 beforeAll(async () => {
+  if (localDataStore && localDataStore.getOrders()) {
+    localDataStore.getOrders().length = 0;
+  }
   mongoServer = await MongoMemoryServer.create();
   await mongoose.connect(mongoServer.getUri());
 });
