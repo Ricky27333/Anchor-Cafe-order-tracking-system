@@ -118,6 +118,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: 1rem;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 .items-grid::-webkit-scrollbar {
   width: 6px;
@@ -127,10 +129,9 @@
   border-radius: 4px;
 }
 
-/* Menu Item Card */
+/* Menu Item Card - High Performance Mobile Architecture */
 .menu-card {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
+  background: #0F2D54;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 0.85rem;
@@ -138,12 +139,15 @@
   flex-direction: column;
   justify-content: space-between;
   min-height: 195px;
-  transition: var(--transition-smooth);
   cursor: pointer;
   position: relative;
   overflow: visible;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 195px;
+  contain: layout style;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .menu-card::before {
   content: '';
@@ -154,18 +158,29 @@
   height: 3px;
   background: linear-gradient(90deg, transparent, var(--color-gold), transparent);
   opacity: 0;
-  transition: var(--transition-smooth);
+  transition: opacity 0.2s ease;
 }
-.menu-card:hover {
-  transform: translateY(-3px);
-  border-color: var(--color-gold);
-  box-shadow: var(--shadow-elevation), 0 0 20px rgba(201, 168, 106, 0.2);
+
+/* Hover effects restricted to desktop mouse pointers */
+@media (hover: hover) and (pointer: fine) {
+  .menu-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--color-gold);
+    box-shadow: 0 8px 24px rgba(4, 18, 36, 0.45), 0 0 15px rgba(201, 168, 106, 0.2);
+  }
+  .menu-card:hover::before {
+    opacity: 1;
+  }
 }
-.menu-card:hover::before {
-  opacity: 1;
-}
+
 .menu-card:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+}
+
+/* Instant GPU Tap Flash on Mobile */
+.menu-card.tap-flash {
+  border-color: #52B788 !important;
+  box-shadow: 0 0 16px rgba(82, 183, 136, 0.5) !important;
 }
 
 .card-top {
@@ -954,11 +969,15 @@
     display: inline-flex !important;
   }
 
-  /* Compact Card Rules on Mobile: Ensures Price & Plus are 100% Visible */
+  /* Compact Card Rules on Mobile: Ensures Price & Plus are 100% Visible & Zero Lag */
   .menu-card {
     min-height: 180px !important;
     padding: 0.75rem 0.65rem !important;
     overflow: visible !important;
+    background: #0D2547 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    contain-intrinsic-size: 0 180px !important;
   }
   .card-top {
     margin-bottom: 0.35rem !important;
@@ -1313,14 +1332,12 @@
    🪑 Mobile & Desktop Table Switcher Strip (Always Visible)
    ========================================================================== */
 .mobile-table-strip-bar {
-  background: rgba(11, 37, 69, 0.95);
+  background: #0B2545;
   border-bottom: 1px solid rgba(201, 168, 106, 0.25);
   padding: 0.3rem 0.75rem 0.45rem 0.75rem;
   position: sticky;
   top: 0;
   z-index: 50;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .mobile-table-strip {

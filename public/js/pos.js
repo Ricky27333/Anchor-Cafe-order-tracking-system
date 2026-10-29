@@ -237,8 +237,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Fetch Tables Live Status & Takeaways ---
-  async function fetchTablesOverview() {
+  // --- Fetch Tables Live Status & Takeaways (With State Fingerprinting to prevent redundant DOM churn) ---
+  let lastTablesFingerprint = '';
+  function computeTablesFingerprint(tables, takeaways, total) {
+    return `${total}_${(takeaways || []).length}_` + (tables || []).map(t => 
+      `${t.tableNumber}:${t.isOccupied ? 1 : 0}:${t.order?._id || ''}:${t.order?.finalTotalAmount || 0}:${t.order?.items?.length || 0}`
+    ).join(';');
+  }
+
+  async function fetchTablesOverview(forceRender = false) {
     try {
       const res = await fetch('/api/orders/tables');
       const data = await res.json();
@@ -250,15 +257,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentTableCountBadge) currentTableCountBadge.textContent = `${currentTotalTables} Tables`;
         if (headerCapacityPill) headerCapacityPill.textContent = `${currentTotalTables} Tables Active`;
 
-        renderTablePills();
-        renderMobileTableStrip();
-        if (typeof mobileTableBottomSheet !== 'undefined' && mobileTableBottomSheet && mobileTableBottomSheet.classList.contains('open')) {
-          renderTableBottomSheet();
+        const newFingerprint = computeTablesFingerprint(tablesData, activeTakeawaysData, currentTotalTables);
+        if (forceRender || newFingerprint !== lastTablesFingerprint) {
+          lastTablesFingerprint = newFingerprint;
+          renderTablePills();
+          renderMobileTableStrip();
+          if (typeof mobileTableBottomSheet !== 'undefined' && mobileTableBottomSheet && mobileTableBottomSheet.classList.contains('open')) {
+            renderTableBottomSheet();
+          }
+          renderTablesFloorGrid();
+          renderTakeawaysFloorGrid();
+          updateActiveTableNotice();
+          renderCart();
         }
-        renderTablesFloorGrid();
-        renderTakeawaysFloorGrid();
-        updateActiveTableNotice();
-        renderCart();
       }
     } catch (err) {
       console.error('Tables fetch error:', err);
@@ -268,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Render Dynamic Table Pills on Cart Side ---
   function renderTablePills() {
     tablePillsRow.innerHTML = '';
+    const fragment = document.createDocumentFragment();
     for (let i = 1; i <= currentTotalTables; i++) {
       const tName = `Table ${i}`;
       const btn = document.createElement('button');
@@ -279,7 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (matched && matched.isOccupied) {
         btn.classList.add('occupied');
       }
-      tablePillsRow.appendChild(btn);
+      fragment.appendChild(btn);
     }
 
     // Append Takeaway pill
@@ -290,13 +302,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeTakeawaysData.length > 0) {
       takeawayBtn.classList.add('occupied');
     }
-    tablePillsRow.appendChild(takeawayBtn);
+    fragment.appendChild(takeawayBtn);
+    tablePillsRow.appendChild(fragment);
   }
 
-  // --- Render Mobile & Desktop Fast Table Switcher Strip (Always Visible) ---
+  // Delegated listener for mobile table strip (attached once)
+  if (mobileTableStrip) {
+    mobileTableStrip.addEventListener('click', (e) => {
+      const btn = e.target.closest('.m-table-btn');
+      if (btn) {
+        const tName = btn.getAttribute('data-table');
+        if (tName) selectTable(tName);
+      }
+    });
+  }
+
+  // --- Render Mobile & Desktop Fast Table Switcher Strip (Always Visible, Batched) ---
   function renderMobileTableStrip() {
     if (!mobileTableStrip) return;
-    mobileTableStrip.innerHTML = '';
+    const fragment = document.createDocumentFragment();
 
     for (let i = 1; i <= currentTotalTables; i++) {
       const tName = `Table ${i}`;
@@ -323,12 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       btn.innerHTML = inner;
-
-      btn.addEventListener('click', () => {
-        selectTable(tName);
-      });
-
-      mobileTableStrip.appendChild(btn);
+      fragment.appendChild(btn);
     }
 
     // Takeaway button in strip
@@ -344,10 +363,10 @@ document.addEventListener('DOMContentLoaded', () => {
       tkInner += `<span class="tbl-draft-dot"></span>`;
     }
     takeawayBtn.innerHTML = tkInner;
-    takeawayBtn.addEventListener('click', () => {
-      selectTable('Takeaway');
-    });
-    mobileTableStrip.appendChild(takeawayBtn);
+    fragment.appendChild(takeawayBtn);
+
+    mobileTableStrip.innerHTML = '';
+    mobileTableStrip.appendChild(fragment);
 
     // Update active table label & bill badge on strip
     if (stripActiveTableLabel) {
@@ -990,13 +1009,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Render Menu Items ---
+  // --- Render Menu Items (Batched with DocumentFragment for Zero Stutter) ---
   function renderItems() {
     itemsGrid.innerHTML = '';
 
+    const q = searchQuery.toLowerCase().trim();
     const filtered = menuCatalog.filter(item => {
       const matchesCategory = currentCategory === 'all' || item.category === currentCategory;
-      const q = searchQuery.toLowerCase().trim();
       const matchesSearch = !q ||
         item.title.toLowerCase().includes(q) ||
         item.sku.toLowerCase().includes(q) ||
@@ -1025,6 +1044,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return (a.sku || '').localeCompare(b.sku || '');
     });
 
+    if (catalogStats) {
+      catalogStats.textContent = `${filtered.length} coastal offerings loaded`;
+    }
+
     if (filtered.length === 0) {
       itemsGrid.innerHTML = `
         <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: var(--color-foam); opacity: 0.7;">
@@ -1034,6 +1057,8 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       return;
     }
+
+    const fragment = document.createDocumentFragment();
 
     filtered.forEach(item => {
       const card = document.createElement('div');
@@ -1098,28 +1123,34 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
 
-      // Both top edit button and bottom price tag open the cost modification modal
-      card.querySelectorAll('.btn-edit-price').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openEditPriceModal(item);
-        });
-      });
+      fragment.appendChild(card);
+    });
 
-      // Tapping anywhere on the card OR the prominent ➕ button adds the item to the order
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-edit-price')) return;
-        handleItemSelect(item);
-        // Visual tap flash feedback
-        card.style.borderColor = '#52B788';
-        card.style.boxShadow = '0 0 15px rgba(82, 183, 136, 0.4)';
-        setTimeout(() => {
-          card.style.borderColor = '';
-          card.style.boxShadow = '';
-        }, 300);
-      });
+    itemsGrid.appendChild(fragment);
+  }
 
-      itemsGrid.appendChild(card);
+  // Delegated click listener on itemsGrid (Zero listener bloat - handles all cards & edit buttons)
+  if (itemsGrid) {
+    itemsGrid.addEventListener('click', (e) => {
+      const editBtn = e.target.closest('.btn-edit-price');
+      if (editBtn) {
+        e.stopPropagation();
+        const itemId = editBtn.getAttribute('data-id');
+        const item = menuCatalog.find(i => String(i._id) === String(itemId));
+        if (item) openEditPriceModal(item);
+        return;
+      }
+
+      const card = e.target.closest('.menu-card');
+      if (card) {
+        const itemId = card.getAttribute('data-id');
+        const item = menuCatalog.find(i => String(i._id) === String(itemId));
+        if (item) {
+          handleItemSelect(item);
+          card.classList.add('tap-flash');
+          setTimeout(() => card.classList.remove('tap-flash'), 250);
+        }
+      }
     });
   }
 
@@ -1520,10 +1551,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  let searchDebounceTimer = null;
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
-      searchQuery = e.target.value;
-      renderItems();
+      const val = e.target.value;
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        searchQuery = val;
+        renderItems();
+      }, 120);
     });
   }
 
@@ -1685,7 +1721,23 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnCloseTableBottomSheet) btnCloseTableBottomSheet.addEventListener('click', closeTableBottomSheet);
   if (tableSheetBackdrop) tableSheetBackdrop.addEventListener('click', closeTableBottomSheet);
 
-  // Render cards in the scroll-up table bottom sheet
+  // Delegated click listener on tableSheetGrid (attached once)
+  if (tableSheetGrid) {
+    tableSheetGrid.addEventListener('click', (e) => {
+      const card = e.target.closest('.table-sheet-card');
+      if (card) {
+        const tName = card.getAttribute('data-table');
+        if (tName) {
+          selectTable(tName);
+          closeTableBottomSheet();
+          showToast(`🪑 Order Allotted to ${tName}! Tap any item to add.`, 'success');
+          soundEngine.playChime();
+        }
+      }
+    });
+  }
+
+  // Render cards in the scroll-up table bottom sheet (Batched with DocumentFragment)
   function renderTableBottomSheet() {
     if (!tableSheetGrid) return;
     tableSheetGrid.innerHTML = '';
@@ -1707,6 +1759,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    const fragment = document.createDocumentFragment();
+
     for (let i = 1; i <= currentTotalTables; i++) {
       const tName = `Table ${i}`;
       const matched = tablesData.find(t => t.tableNumber === tName);
@@ -1716,6 +1770,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const card = document.createElement('div');
       card.className = `table-sheet-card ${isSelected ? 'active-allotted' : ''} ${isOcc ? 'occupied' : ''}`;
+      card.setAttribute('data-table', tName);
 
       let statusBadge = '<span class="tsc-badge free">🟢 Available</span>';
       let infoText = 'Table is free. Tap to allot new customer order.';
@@ -1752,14 +1807,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </button>
       `;
 
-      card.addEventListener('click', () => {
-        selectTable(tName);
-        closeTableBottomSheet();
-        showToast(`🪑 Order Allotted to ${tName}! Tap any item to add.`, 'success');
-        soundEngine.playChime();
-      });
-
-      tableSheetGrid.appendChild(card);
+      fragment.appendChild(card);
     }
 
     // Add Takeaway card to sheet
@@ -1767,6 +1815,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tkCount = activeTakeawaysData.length;
     const tkCard = document.createElement('div');
     tkCard.className = `table-sheet-card ${isTkSelected ? 'active-allotted' : ''} ${tkCount > 0 ? 'occupied' : ''}`;
+    tkCard.setAttribute('data-table', 'Takeaway');
     tkCard.innerHTML = `
       <div class="tsc-top">
         <span class="tsc-name" style="color: #48CAE4;">🛍️ Takeaway</span>
@@ -1777,13 +1826,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ${isTkSelected ? '✓ Selected Takeaway' : 'Allot to Takeaway'}
       </button>
     `;
-    tkCard.addEventListener('click', () => {
-      selectTable('Takeaway');
-      closeTableBottomSheet();
-      showToast(`🛍️ Allotted to Takeaway!`, 'info');
-      soundEngine.playChime();
-    });
-    tableSheetGrid.appendChild(tkCard);
+    fragment.appendChild(tkCard);
+
+    tableSheetGrid.appendChild(fragment);
   }
 
   // Toggle between Grid View and Compact List View on Mobile
@@ -2103,10 +2148,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Socket.IO events for live table & expense updates
   if (socket) {
-    socket.on('order:created', () => { fetchTablesOverview(); fetchExpenseSummary(); });
-    socket.on('payment:recorded', () => { fetchTablesOverview(); fetchExpenseSummary(); });
-    socket.on('kot:status_change', () => fetchTablesOverview());
-    socket.on('tables:count_updated', () => fetchTablesOverview());
+    socket.on('order:created', () => { fetchTablesOverview(true); fetchExpenseSummary(); });
+    socket.on('payment:recorded', () => { fetchTablesOverview(true); fetchExpenseSummary(); });
+    socket.on('kot:status_change', () => fetchTablesOverview(true));
+    socket.on('tables:count_updated', () => fetchTablesOverview(true));
     socket.on('expense:recorded', () => { fetchExpenseSummary(); fetchExpensesList(currentExpenseFilter); });
     socket.on('expense:deleted', () => { fetchExpenseSummary(); fetchExpensesList(currentExpenseFilter); });
     socket.on('menu:price_updated', ({ item }) => {
@@ -2120,11 +2165,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial loads with safety wrapping
   try { fetchMenuCatalog(); } catch (e) { console.error('Menu load failed:', e); }
-  try { fetchTablesOverview(); } catch (e) { console.error('Tables load failed:', e); }
+  try { fetchTablesOverview(true); } catch (e) { console.error('Tables load failed:', e); }
   try { fetchExpenseSummary(); } catch (e) { console.error('Expenses load failed:', e); }
 
+  // Background fallback poll (uses fingerprinting so no re-renders unless data changed)
   setInterval(() => {
-    try { fetchTablesOverview(); } catch (e) {}
+    try { fetchTablesOverview(false); } catch (e) {}
     try { fetchExpenseSummary(); } catch (e) {}
-  }, 10000);
+  }, 25000);
 });
