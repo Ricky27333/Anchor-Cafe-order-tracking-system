@@ -78,7 +78,7 @@ async function createOrder(req, res) {
 
     const validatedItems = items.map(item => {
       const quantity = Math.max(1, Number(item.quantity) || 1);
-      const unitPrice = Number(item.unitPrice) || 0;
+      const unitPrice = Number(item.unitPrice !== undefined ? item.unitPrice : item.price) || 0;
       const subtotal = unitPrice * quantity;
       subtotalAmount += subtotal;
       totalItemCount += quantity;
@@ -86,8 +86,8 @@ async function createOrder(req, res) {
       return {
         menuItemId: item.menuItemId || null,
         sku: item.sku || '',
-        title: item.title,
-        category: item.category,
+        title: item.title || 'Cafe Offering',
+        category: item.category || 'Beverages',
         variant: item.variant || null,
         unitPrice,
         quantity,
@@ -763,6 +763,9 @@ async function getTablePerformance(req, res) {
     const tablesReport = [];
     let grandRevenue = 0;
     let grandOrders = 0;
+    let grandCashRevenue = 0;
+    let grandUpiRevenue = 0;
+    let grandCardRevenue = 0;
 
     for (let i = 1; i <= totalTables; i++) {
       const tLabel = `Table ${i}`;
@@ -772,22 +775,45 @@ async function getTablePerformance(req, res) {
       });
 
       const rev = tOrders.reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+      const cashRev = tOrders.filter(o => (o.paymentMethod || '').toUpperCase() === 'CASH').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+      const upiRev = tOrders.filter(o => {
+        const m = (o.paymentMethod || '').toUpperCase();
+        return m !== 'CASH' && m !== 'CARD';
+      }).reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+      const cardRev = tOrders.filter(o => (o.paymentMethod || '').toUpperCase() === 'CARD').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+
       const itemsCount = tOrders.reduce((acc, o) => acc + (Number(o.totalItemCount) || 0), 0);
       const paidOrders = tOrders.filter(o => o.paymentStatus === 'PAID').length;
       const unpaidOrders = tOrders.filter(o => o.paymentStatus !== 'PAID').length;
 
       grandRevenue += rev;
       grandOrders += tOrders.length;
+      grandCashRevenue += cashRev;
+      grandUpiRevenue += upiRev;
+      grandCardRevenue += cardRev;
 
       tablesReport.push({
         tableNumber: tLabel,
         tableId: i,
         orderCount: tOrders.length,
         totalRevenue: rev,
+        cashRevenue: cashRev,
+        upiRevenue: upiRev,
+        cardRevenue: cardRev,
         itemsCount,
         averageBill: tOrders.length > 0 ? Math.round(rev / tOrders.length) : 0,
         paidOrders,
-        unpaidOrders
+        unpaidOrders,
+        orders: tOrders.map(o => ({
+          orderNumber: o.orderNumber,
+          customerName: o.locationDetails?.customerName || 'Guest',
+          finalTotalAmount: o.finalTotalAmount,
+          paymentMethod: o.paymentMethod || 'PHONEPE',
+          paymentStatus: o.paymentStatus || 'UNPAID',
+          totalItemCount: o.totalItemCount || (o.items || []).length,
+          itemsSummary: (o.items || []).map(it => `${it.quantity}x ${it.title}`).join(', '),
+          createdAt: o.createdAt
+        }))
       });
     }
 
@@ -797,18 +823,41 @@ async function getTablePerformance(req, res) {
       return o.orderType === 'TAKEAWAY' || tbl.includes('takeaway') || tbl.includes('pickup');
     });
     const takeawayRev = takeawayOrders.reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+    const takeawayCash = takeawayOrders.filter(o => (o.paymentMethod || '').toUpperCase() === 'CASH').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+    const takeawayUpi = takeawayOrders.filter(o => {
+      const m = (o.paymentMethod || '').toUpperCase();
+      return m !== 'CASH' && m !== 'CARD';
+    }).reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+    const takeawayCard = takeawayOrders.filter(o => (o.paymentMethod || '').toUpperCase() === 'CARD').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+
     grandRevenue += takeawayRev;
     grandOrders += takeawayOrders.length;
+    grandCashRevenue += takeawayCash;
+    grandUpiRevenue += takeawayUpi;
+    grandCardRevenue += takeawayCard;
 
     tablesReport.push({
       tableNumber: 'Takeaway',
       tableId: 0,
       orderCount: takeawayOrders.length,
       totalRevenue: takeawayRev,
+      cashRevenue: takeawayCash,
+      upiRevenue: takeawayUpi,
+      cardRevenue: takeawayCard,
       itemsCount: takeawayOrders.reduce((acc, o) => acc + (Number(o.totalItemCount) || 0), 0),
       averageBill: takeawayOrders.length > 0 ? Math.round(takeawayRev / takeawayOrders.length) : 0,
       paidOrders: takeawayOrders.filter(o => o.paymentStatus === 'PAID').length,
-      unpaidOrders: takeawayOrders.filter(o => o.paymentStatus !== 'PAID').length
+      unpaidOrders: takeawayOrders.filter(o => o.paymentStatus !== 'PAID').length,
+      orders: takeawayOrders.map(o => ({
+        orderNumber: o.orderNumber,
+        customerName: o.locationDetails?.customerName || 'Takeaway Guest',
+        finalTotalAmount: o.finalTotalAmount,
+        paymentMethod: o.paymentMethod || 'PHONEPE',
+        paymentStatus: o.paymentStatus || 'UNPAID',
+        totalItemCount: o.totalItemCount || (o.items || []).length,
+        itemsSummary: (o.items || []).map(it => `${it.quantity}x ${it.title}`).join(', '),
+        createdAt: o.createdAt
+      }))
     });
 
     res.json({
@@ -818,6 +867,9 @@ async function getTablePerformance(req, res) {
       endDate: endDate.toISOString(),
       grandTotalRevenue: grandRevenue,
       grandTotalOrders: grandOrders,
+      grandCashRevenue,
+      grandUpiRevenue,
+      grandCardRevenue,
       tables: tablesReport
     });
   } catch (error) {

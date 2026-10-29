@@ -85,6 +85,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnConfirmCloseDay = document.getElementById('btnConfirmCloseDay');
   const btnPrintReceipt = document.getElementById('btnPrintReceipt');
 
+  // Day-Wise Table Sales & Cash Records DOM
+  const btnDayWiseToday = document.getElementById('btnDayWiseToday');
+  const btnDayWiseYesterday = document.getElementById('btnDayWiseYesterday');
+  const inputDayWiseDate = document.getElementById('inputDayWiseDate');
+  const btnRefreshDayWise = document.getElementById('btnRefreshDayWise');
+  const dayWiseGrandRevenue = document.getElementById('dayWiseGrandRevenue');
+  const dayWiseGrandOrders = document.getElementById('dayWiseGrandOrders');
+  const dayWiseGrandCash = document.getElementById('dayWiseGrandCash');
+  const dayWiseGrandUpi = document.getElementById('dayWiseGrandUpi');
+  const dayWiseGrandCard = document.getElementById('dayWiseGrandCard');
+  const dayWiseTableBody = document.getElementById('dayWiseTableBody');
+  const dayWiseTableOrdersDetail = document.getElementById('dayWiseTableOrdersDetail');
+  const detailTableName = document.getElementById('detailTableName');
+  const detailTableDate = document.getElementById('detailTableDate');
+  const dayWiseTableOrdersList = document.getElementById('dayWiseTableOrdersList');
+  const btnCloseTableDetailView = document.getElementById('btnCloseTableDetailView');
+
+  let currentDayWisePeriod = 'today';
+  let currentDayWiseDate = '';
+  let cachedDayWiseTables = [];
+
   // In-memory state cache
   let allRawExpenses = [];
   let activeExpenseCatFilter = 'all';
@@ -122,6 +143,213 @@ document.addEventListener('DOMContentLoaded', () => {
     kpiTodayNet.textContent = `${net >= 0 ? '+' : ''}₹${net.toLocaleString()}`;
     kpiTodayNet.style.color = net >= 0 ? '#52B788' : '#EE6C4D';
     kpiTodaySub.textContent = `Sales: ₹${gross.toLocaleString()} • Spend: ₹${exp.toLocaleString()} (${t.expensesCount || 0} items)`;
+  }
+
+  // --- 🪑 Fetch & Render Day-Wise Table Sales & Cash Payment Breakdown ---
+  async function fetchDayWiseTableRecords(period = 'today', dateStr = '') {
+    if (!dayWiseTableBody) return;
+    dayWiseTableBody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align: center; padding: 2rem; color: var(--color-foam);">
+          Loading day-wise table records...
+        </td>
+      </tr>
+    `;
+
+    try {
+      let url = `/api/orders/tables/performance?period=${period}`;
+      if (dateStr) {
+        url += `&date=${encodeURIComponent(dateStr)}`;
+      }
+
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.success) {
+        dayWiseTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #EE6C4D; padding: 1.5rem;">${data.message || 'Error loading day records'}</td></tr>`;
+        return;
+      }
+
+      cachedDayWiseTables = data.tables || [];
+
+      // Update KPI Badges
+      const grandRev = data.grandTotalRevenue || 0;
+      const grandOrd = data.grandTotalOrders || 0;
+      const grandCash = data.grandCashRevenue || 0;
+      const grandUpi = data.grandUpiRevenue || 0;
+      const grandCard = data.grandCardRevenue || 0;
+
+      if (dayWiseGrandRevenue) dayWiseGrandRevenue.textContent = `₹${grandRev.toLocaleString('en-IN')}`;
+      if (dayWiseGrandOrders) dayWiseGrandOrders.textContent = `${grandOrd} Orders Completed`;
+      if (dayWiseGrandCash) dayWiseGrandCash.textContent = `₹${grandCash.toLocaleString('en-IN')}`;
+      if (dayWiseGrandUpi) dayWiseGrandUpi.textContent = `₹${grandUpi.toLocaleString('en-IN')}`;
+      if (dayWiseGrandCard) dayWiseGrandCard.textContent = `₹${grandCard.toLocaleString('en-IN')}`;
+
+      // Set date display badge
+      const activeDateDisplay = dateStr || (period === 'yesterday' ? 'Yesterday' : (new Date().toISOString().split('T')[0]));
+      if (detailTableDate) detailTableDate.textContent = activeDateDisplay;
+
+      if (cachedDayWiseTables.length === 0) {
+        dayWiseTableBody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align: center; padding: 2rem; color: var(--color-sand-muted);">
+              No completed table orders found for this day.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      let tbodyHtml = '';
+      cachedDayWiseTables.forEach(t => {
+        const hasOrders = t.orderCount > 0;
+        const cashAdded = t.cashRevenue || 0;
+        const upiAdded = t.upiRevenue || 0;
+        const totalAdded = t.totalRevenue || 0;
+        const avgBill = t.averageBill || 0;
+
+        let statusText = '<span style="opacity: 0.4;">No Orders</span>';
+        if (hasOrders) {
+          const parts = [];
+          if (cashAdded > 0) parts.push(`<span style="color: #52B788; font-weight: 700;">₹${cashAdded} Cash</span>`);
+          if (upiAdded > 0) parts.push(`<span style="color: #48CAE4; font-weight: 700;">₹${upiAdded} UPI</span>`);
+          if (t.cardRevenue > 0) parts.push(`<span style="color: var(--color-sand); font-weight: 700;">₹${t.cardRevenue} Card</span>`);
+          statusText = parts.join(' + ') || '<span style="color: #52B788;">Paid</span>';
+        }
+
+        tbodyHtml += `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); transition: background 0.2s;" onmouseover="this.style.background='rgba(201,168,106,0.08)'" onmouseout="this.style.background='transparent'">
+            <td style="font-weight: 700; color: var(--color-gold);">
+              ${t.tableNumber === 'Takeaway' ? '🛍️ Takeaway / Parcel' : `🪑 ${t.tableNumber}`}
+            </td>
+            <td style="text-align: center; font-weight: 700;">
+              ${t.orderCount > 0 ? `<span style="background: rgba(201,168,106,0.15); color: var(--color-gold); padding: 0.15rem 0.5rem; border-radius: var(--radius-pill);">${t.orderCount}</span>` : '<span style="opacity: 0.4;">0</span>'}
+            </td>
+            <td style="text-align: right; font-weight: 800; color: ${cashAdded > 0 ? '#52B788' : 'rgba(255,255,255,0.3)'};">
+              ${cashAdded > 0 ? `₹${cashAdded.toLocaleString('en-IN')}` : '₹0'}
+            </td>
+            <td style="text-align: right; font-weight: 800; color: ${upiAdded > 0 ? '#48CAE4' : 'rgba(255,255,255,0.3)'};">
+              ${upiAdded > 0 ? `₹${upiAdded.toLocaleString('en-IN')}` : '₹0'}
+            </td>
+            <td style="text-align: right; font-weight: 800; font-size: 1.05rem; color: ${totalAdded > 0 ? 'var(--color-gold)' : 'rgba(255,255,255,0.3)'};">
+              ${totalAdded > 0 ? `₹${totalAdded.toLocaleString('en-IN')}` : '₹0'}
+            </td>
+            <td style="text-align: right; color: var(--color-foam); opacity: 0.85;">
+              ${avgBill > 0 ? `₹${avgBill.toLocaleString('en-IN')}` : '—'}
+            </td>
+            <td style="text-align: center; font-size: 0.78rem;">
+              ${statusText}
+            </td>
+            <td style="text-align: right;">
+              ${hasOrders ? `
+                <button class="btn-table-action btn-show-table-detail" data-tbl="${t.tableNumber}" style="padding: 0.25rem 0.6rem; font-size: 0.75rem; border-color: var(--color-gold); color: var(--color-gold); font-weight: 700;" title="View itemized bills for ${t.tableNumber}">
+                  🧾 View Bills (${t.orderCount})
+                </button>
+              ` : '<span style="font-size: 0.75rem; opacity: 0.4;">—</span>'}
+            </td>
+          </tr>
+        `;
+      });
+
+      dayWiseTableBody.innerHTML = tbodyHtml;
+
+      // Attach View Bills click listeners
+      dayWiseTableBody.querySelectorAll('.btn-show-table-detail').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tNum = btn.getAttribute('data-tbl');
+          showTableOrdersDetail(tNum);
+        });
+      });
+
+    } catch (err) {
+      console.error('Error fetching day-wise table records:', err);
+      dayWiseTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #EE6C4D; padding: 1.5rem;">Failed to fetch records: ${err.message}</td></tr>`;
+    }
+  }
+
+  // --- Show Itemized Bills for Specific Table on Selected Day ---
+  function showTableOrdersDetail(tableNumber) {
+    if (!dayWiseTableOrdersDetail || !dayWiseTableOrdersList) return;
+    const tableData = cachedDayWiseTables.find(t => t.tableNumber === tableNumber);
+    if (!tableData || !tableData.orders || tableData.orders.length === 0) {
+      showToast(`No completed orders found for ${tableNumber}`, 'warning');
+      return;
+    }
+
+    if (detailTableName) detailTableName.textContent = tableNumber;
+    dayWiseTableOrdersList.innerHTML = '';
+
+    tableData.orders.forEach(ord => {
+      const isCash = (ord.paymentMethod || '').toUpperCase() === 'CASH';
+      const isCard = (ord.paymentMethod || '').toUpperCase() === 'CARD';
+      const payBadge = isCash 
+        ? `<span style="background: rgba(82,183,136,0.2); color: #52B788; border: 1px solid #52B788; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800;">💵 CASH PAID</span>`
+        : (isCard 
+          ? `<span style="background: rgba(201,168,106,0.2); color: var(--color-gold); border: 1px solid var(--color-gold); padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800;">💳 CARD PAID</span>`
+          : `<span style="background: rgba(72,202,228,0.2); color: #48CAE4; border: 1px solid #48CAE4; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800;">📱 ${ord.paymentMethod}</span>`);
+
+      const timeFormatted = ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+      const card = document.createElement('div');
+      card.style.cssText = 'background: rgba(11,37,69,0.7); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 0.6rem 0.85rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;';
+      card.innerHTML = `
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+            <strong style="color: var(--color-gold);">${ord.orderNumber}</strong>
+            <span style="font-size: 0.8rem; color: var(--color-sand);">👤 ${ord.customerName}</span>
+            <small style="color: var(--color-sand-muted); font-size: 0.72rem;">⏰ ${timeFormatted}</small>
+            ${payBadge}
+          </div>
+          <div style="font-size: 0.8rem; color: var(--color-foam); opacity: 0.9;">
+            ${ord.itemsSummary || `${ord.totalItemCount} items`}
+          </div>
+        </div>
+        <div style="font-family: var(--font-heading); font-size: 1.15rem; font-weight: 800; color: var(--color-gold);">
+          ₹${ord.finalTotalAmount}
+        </div>
+      `;
+      dayWiseTableOrdersList.appendChild(card);
+    });
+
+    dayWiseTableOrdersDetail.style.display = 'block';
+    dayWiseTableOrdersDetail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  if (btnCloseTableDetailView) {
+    btnCloseTableDetailView.addEventListener('click', () => {
+      if (dayWiseTableOrdersDetail) dayWiseTableOrdersDetail.style.display = 'none';
+    });
+  }
+
+  // Day-Wise Filter Pill Buttons
+  function setDayWisePeriodActive(activeBtn, period, dateVal = '') {
+    [btnDayWiseToday, btnDayWiseYesterday].forEach(b => { if (b) b.classList.remove('active'); });
+    if (activeBtn) activeBtn.classList.add('active');
+    currentDayWisePeriod = period;
+    currentDayWiseDate = dateVal;
+    if (inputDayWiseDate) inputDayWiseDate.value = dateVal;
+    if (dayWiseTableOrdersDetail) dayWiseTableOrdersDetail.style.display = 'none';
+    fetchDayWiseTableRecords(period, dateVal);
+  }
+
+  if (btnDayWiseToday) {
+    btnDayWiseToday.addEventListener('click', () => setDayWisePeriodActive(btnDayWiseToday, 'today'));
+  }
+  if (btnDayWiseYesterday) {
+    btnDayWiseYesterday.addEventListener('click', () => setDayWisePeriodActive(btnDayWiseYesterday, 'yesterday'));
+  }
+  if (inputDayWiseDate) {
+    inputDayWiseDate.addEventListener('change', () => {
+      const val = inputDayWiseDate.value;
+      if (val) {
+        setDayWisePeriodActive(null, 'custom', val);
+      }
+    });
+  }
+  if (btnRefreshDayWise) {
+    btnRefreshDayWise.addEventListener('click', () => {
+      fetchDayWiseTableRecords(currentDayWisePeriod, currentDayWiseDate);
+      showToast('Day-wise records refreshed', 'info');
+    });
   }
 
   // --- Fetch Monthly Analytics & Full Records ---
@@ -349,25 +577,45 @@ document.addEventListener('DOMContentLoaded', () => {
         <td style="font-size: 0.85rem; color: var(--color-foam);">${dayRow.ordersCount} orders</td>
         <td><span class="badge-decision ${badgeClass}">${badgeLabel}</span></td>
         <td style="text-align: right;">
-          ${dayRow.rawMaterialExpenses > 0 ? `
-            <button class="btn-table-action btn-filter-day-exp" data-date="${dayRow.date}" title="Show material purchases on this day">
-              🔍 ${dayRow.expensesCount} Purchases
-            </button>
-          ` : '<span style="font-size: 0.75rem; opacity: 0.4;">No buys</span>'}
+          <div style="display: inline-flex; gap: 0.35rem; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
+            ${dayRow.grossSales > 0 ? `
+              <button class="btn-table-action btn-inspect-day-tables" data-date="${dayRow.date}" style="border-color: #52B788; color: #74C69D;" title="Inspect table breakdown & cash for this day">
+                🪑 Tables (₹${dayRow.grossSales.toLocaleString('en-IN')})
+              </button>
+            ` : ''}
+            ${dayRow.rawMaterialExpenses > 0 ? `
+              <button class="btn-table-action btn-filter-day-exp" data-date="${dayRow.date}" title="Show material purchases on this day">
+                🔍 ${dayRow.expensesCount} Purchases
+              </button>
+            ` : (dayRow.grossSales > 0 ? '' : '<span style="font-size: 0.75rem; opacity: 0.4;">No buys</span>')}
+          </div>
         </td>
       `;
       dailyLedgerTableBody.appendChild(row);
     });
 
-    // Attach Day Filter listeners
+    // Attach Day Filter listeners for raw materials
     document.querySelectorAll('.btn-filter-day-exp').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const d = e.target.getAttribute('data-date');
+        const d = btn.getAttribute('data-date');
         activeExpenseDateFilter = d;
         renderRawMaterialExpenses();
         // Scroll smoothly to raw material table
         document.getElementById('rawMaterialTable').scrollIntoView({ behavior: 'smooth', block: 'center' });
         showToast(`Filtered purchases for ${d}`, 'info');
+      });
+    });
+
+    // Attach Day-Wise Table Inspection listeners
+    document.querySelectorAll('.btn-inspect-day-tables').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = btn.getAttribute('data-date');
+        setDayWisePeriodActive(null, 'custom', d);
+        const dayWiseSec = document.getElementById('dayWiseSection');
+        if (dayWiseSec) {
+          dayWiseSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        showToast(`Loaded Table & Cash records for ${d}`, 'info');
       });
     });
   }
@@ -811,6 +1059,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnRefreshAnalytics.addEventListener('click', () => {
       fetchDailySummary();
       fetchMonthlyAnalytics();
+      fetchDayWiseTableRecords(currentDayWisePeriod, currentDayWiseDate);
       showToast('Financial Records Refreshed', 'info');
     });
   }
@@ -836,10 +1085,12 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('payment:recorded', () => {
       fetchMonthlyAnalytics();
       fetchDailySummary();
+      fetchDayWiseTableRecords(currentDayWisePeriod, currentDayWiseDate);
     });
     socket.on('order:created', () => {
       fetchMonthlyAnalytics();
       fetchDailySummary();
+      fetchDayWiseTableRecords(currentDayWisePeriod, currentDayWiseDate);
     });
   }
 
@@ -860,4 +1111,5 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial Data Load
   fetchDailySummary();
   fetchMonthlyAnalytics();
+  fetchDayWiseTableRecords('today');
 });
