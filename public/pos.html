@@ -2,817 +2,371 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>9 Tables POS & Payment Terminal | Anchor Cafe Chirala</title>
-  <meta name="description" content="Anchor Cafe 9-table order tracking and quick PhonePe/GPay/Cash payment confirmation system with water bottle and soft drinks.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Anchor Cafe POS &amp; Table Tracking | Ramapuram Beach, Chirala</title>
+  <meta name="description" content="Ultra-smooth, zero-lag beach POS terminal for Anchor Cafe. Track table orders, food preparation, serving, and 1-tap instant payment.">
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/pos.css">
 </head>
 <body>
 
-  <!-- Top App Navigation -->
+  <!-- Top App Navigation Bar (Clean & Professional) -->
   <header class="app-header">
     <div class="brand-wrapper">
       <div class="brand-icon">⚓</div>
       <div class="brand-text">
-        <h1>AnchorTrack POS</h1>
-        <p>Ramapuram Beach, Chirala &bull; 9 Tables &amp; Beach Sand Tracker</p>
+        <h1>Anchor Cafe POS</h1>
+        <p>Ramapuram Beach &bull; Tables &amp; Orders</p>
       </div>
     </div>
 
-    <nav class="header-nav" aria-label="Main Navigation">
-      <a href="/pos" class="nav-link active">🛒 POS &amp; Tables</a>
-      <a href="/admin/analytics" class="nav-link">📊 Financial Records</a>
-    </nav>
+    <!-- Mode Switcher (Menu vs Floor) -->
+    <div class="header-mode-switch">
+      <button class="mode-pill active" id="tabBtnMenuCatalog">
+        📜 Menu Offerings
+      </button>
+      <button class="mode-pill" id="tabBtnTablesOverview">
+        🪑 Tables Floor (<span id="occupiedTablesCount">0</span> Active)
+      </button>
+    </div>
 
     <div class="header-actions">
-      <button class="btn-outline" id="btnOpenTableTrackingModal" style="border-color: #48CAE4; color: #48CAE4; display: flex; align-items: center; gap: 0.35rem; font-weight: 700; padding: 0.4rem 0.8rem; font-size: 0.8rem;" title="View Table-Wise Daily and Monthly Orders & Revenue">
-        <span>📊</span> Table Tracking
-      </button>
-      <button class="btn-outline" id="btnOpenExpensesModal" style="border-color: #E63946; color: #FFB4A2; display: flex; align-items: center; gap: 0.35rem; font-weight: 700; padding: 0.4rem 0.8rem; font-size: 0.8rem;" title="Record Milk, Groceries, or Supplies bought from today's/yesterday's sales">
-        <span>💸</span> Expenses (<span id="topTodayExpensesPill">₹0</span>)
-      </button>
+      <a href="/admin/analytics" class="nav-link header-analytics-link" title="Open Day-Wise Sales, Expenses & Reports">
+        📊 Financial Records
+      </a>
       <button class="btn-sound-toggle" id="btnSoundToggle" title="Toggle Order Chimes">
         🔊 Sound: ON
       </button>
-      <span class="status-pill live" id="headerCapacityPill">Floor Active</span>
     </div>
   </header>
 
-  <!-- POS Top View Mode Switcher -->
-  <div style="background: rgba(6, 24, 44, 0.9); padding: 0.5rem 1.5rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--glass-border); flex-wrap: wrap; gap: 0.5rem;">
-    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-      <button class="cat-pill active" id="tabBtnMenuCatalog">
-        📜 Menu Offerings &amp; Drinks
-      </button>
-      <button class="cat-pill" id="tabBtnTablesOverview">
-        🪑 Floor Overview (<span id="occupiedTablesCount">0</span> Tables Active &bull; <span id="topTakeawaysCount">0</span> Takeaways)
-      </button>
-      <button class="cat-pill mobile-only-btn" id="tabBtnOpenCart">
-        🛒 Order (<span id="topCartBadgeCount">0</span>) &bull; <span id="topCartBadgeTotal">₹0</span>
-      </button>
+  <!-- Fast Unified Table Bar (1-Tap Switch with zero lag) -->
+  <section class="fast-table-bar" aria-label="Table Selection">
+    <div class="table-bar-left">
+      <span class="table-bar-label">🪑 Table:</span>
+      <div class="table-pills-scroll" id="tablePillsRow">
+        <button class="table-pill active" data-table="Table 1">T1</button>
+        <button class="table-pill" data-table="Table 2">T2</button>
+        <button class="table-pill" data-table="Table 3">T3</button>
+        <button class="table-pill" data-table="Table 4">T4</button>
+        <button class="table-pill" data-table="Table 5">T5</button>
+        <button class="table-pill" data-table="Table 6">T6</button>
+        <button class="table-pill" data-table="Table 7">T7</button>
+        <button class="table-pill" data-table="Table 8">T8</button>
+        <button class="table-pill" data-table="Table 9">T9</button>
+        <button class="table-pill" data-table="Takeaway">🛍️ Parcel</button>
+      </div>
     </div>
-    <div style="font-size: 0.85rem; color: var(--color-gold);">
-      📍 Active Selection: <strong id="topActiveTableLabel" style="color: #52B788;">Table 1</strong>
+
+    <div class="table-bar-right">
+      <div class="active-table-badge" id="activeTableIndicator">
+        <span>Active:</span>
+        <strong id="topActiveTableLabel">Table 1</strong>
+        <span id="topActiveTableBill" class="badge-bill">₹0</span>
+        <button id="btnTopCheckStatus" class="btn-top-check-status" style="display: none;">📋 Check Status</button>
+      </div>
+
+      <div class="search-input-box">
+        <span class="search-ico">🔍</span>
+        <input type="text" id="searchInput" placeholder="Search water, drink, coffee, snacks...">
+      </div>
     </div>
-  </div>
+  </section>
+
+  <!-- Category Filter Bar (Smooth horizontal glide) -->
+  <nav class="category-filter-bar" id="categoryFilterBar" aria-label="Categories">
+    <button class="cat-pill active" data-cat="all">🌟 All Offerings</button>
+    <button class="cat-pill" data-cat="soft-drinks">💧 Water &amp; Soft Drinks</button>
+    <button class="cat-pill" data-cat="energy-drinks">⚡ Energy Drinks</button>
+    <button class="cat-pill" data-cat="hot-beverages">☕ Filter Coffee &amp; Teas</button>
+    <button class="cat-pill" data-cat="shakes">🥤 27 Thick Shakes</button>
+    <button class="cat-pill" data-cat="mojitos">🍹 Beach Mojitos</button>
+    <button class="cat-pill" data-cat="snacks">🍟 Crispy Beach Bites</button>
+    <button class="cat-pill" data-cat="icecream">🍨 Ice Creams</button>
+    <button class="cat-pill" data-cat="beach-services">🌊 Beach Experiences</button>
+  </nav>
 
   <!-- POS Terminal Main View -->
   <main class="pos-container">
     
-    <!-- Left: Dynamic View Area (Menu Catalog OR 9 Tables Grid) -->
+    <!-- Left: Dynamic View Area (Menu Catalog OR Tables Grid) -->
     <section class="pos-catalog-area">
       
       <!-- VIEW 1: Menu Catalog Area -->
-      <div id="viewMenuCatalog" style="display: flex; flex-direction: column; height: 100%;">
+      <div id="viewMenuCatalog" class="catalog-view-panel">
         
-        <!-- Fast Table Switcher Strip (Always Visible - 1-Tap Switch on Mobile & Desktop) -->
-        <div class="mobile-table-strip-bar" id="mobileTableStripBar">
-          <div style="font-size: 0.72rem; color: var(--color-gold); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.85rem 0.2rem 0.85rem;">
-            <span style="display: flex; align-items: center; gap: 0.4rem;">
-              <span>🪑 Allotted To:</span>
-              <strong id="stripActiveTableLabel" style="color: #52B788; font-size: 0.85rem;">Table 1</strong>
-            </span>
-            <div style="display: flex; gap: 0.4rem; align-items: center;">
-              <span id="stripActiveTableBillBadge" style="color: var(--color-gold); font-size: 0.72rem; background: rgba(201,168,106,0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: none;">₹0</span>
-              <button id="btnStripCheckStatus" style="display: none; background: rgba(72, 202, 228, 0.2); border: 1px solid #48CAE4; color: #48CAE4; border-radius: 4px; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; cursor: pointer; touch-action: manipulation;" title="Check ordered items, kitchen progress & confirm status">📋 Check Status</button>
-              <button class="btn-open-table-sheet-top" id="btnOpenTableSheetTop" title="Open 9-Tables Selection Drawer">
-                <span>🪑 Switch Table 🔼</span>
-              </button>
-            </div>
-          </div>
-          <div class="mobile-table-strip" id="mobileTableStrip">
-            <!-- Dynamically populated T1 to T9 + Takeaway -->
-          </div>
-        </div>
-
-        <!-- ⚡ 1-Tap Beach Bestsellers Speed-Bar (Instant Add - No Typing or Searching Required!) -->
+        <!-- Speed Bar (1-Tap Best Sellers) -->
         <div class="speed-bar-container" id="speedBarContainer">
           <div class="speed-bar-label">
             <span>⚡ 1-Tap Quick Add:</span>
-            <small style="color: var(--color-sand-muted); font-size: 0.68rem;">Tap to add immediately</small>
           </div>
           <div class="speed-bar-scroll" id="speedBarScroll">
-            <button class="speed-btn" data-sku="BEV-WAT-001" data-title="Kinley Water Bottle 1L" data-price="20" title="Tap to add Kinley Water Bottle">
+            <button class="speed-btn" data-sku="BEV-WAT-001" data-title="Kinley Water Bottle 1L" data-price="20">
               <span class="speed-icon">💧</span>
               <span class="speed-name">Kinley 1L</span>
               <span class="speed-price">₹20 ➕</span>
             </button>
-            <button class="speed-btn" data-sku="BEV-SOD-001" data-title="Coca-Cola Classic" data-price="40" title="Tap to add Coca-Cola">
+            <button class="speed-btn" data-sku="BEV-SOD-001" data-title="Coca-Cola Classic" data-price="40">
               <span class="speed-icon">🥤</span>
               <span class="speed-name">Coca-Cola</span>
               <span class="speed-price">₹40 ➕</span>
             </button>
-            <button class="speed-btn" data-sku="BEV-SOD-003" data-title="Thums Up Thunder Can" data-price="40" title="Tap to add Thums Up">
+            <button class="speed-btn" data-sku="BEV-SOD-003" data-title="Thums Up Thunder Can" data-price="40">
               <span class="speed-icon">⚡</span>
               <span class="speed-name">Thums Up</span>
               <span class="speed-price">₹40 ➕</span>
             </button>
-            <button class="speed-btn" data-sku="BEV-SOD-002" data-title="Sprite Chilled Can" data-price="40" title="Tap to add Sprite">
+            <button class="speed-btn" data-sku="BEV-SOD-002" data-title="Sprite Chilled Can" data-price="40">
               <span class="speed-icon">🍋</span>
               <span class="speed-name">Sprite</span>
               <span class="speed-price">₹40 ➕</span>
             </button>
-            <button class="speed-btn" data-sku="BEV-NRG-001" data-title="Red Bull Energy Drink" data-price="125" title="Tap to add Red Bull">
+            <button class="speed-btn" data-sku="BEV-NRG-001" data-title="Red Bull Energy Drink" data-price="125">
               <span class="speed-icon">🐂</span>
               <span class="speed-name">Red Bull</span>
               <span class="speed-price">₹125 ➕</span>
             </button>
-            <button class="speed-btn" data-sku="BEV-HOT-001" data-title="South Indian Filter Coffee" data-price="35" title="Tap to add Filter Coffee">
+            <button class="speed-btn" data-sku="BEV-HOT-001" data-title="South Indian Filter Coffee" data-price="35">
               <span class="speed-icon">☕</span>
               <span class="speed-name">Filter Coffee</span>
               <span class="speed-price">₹35 ➕</span>
             </button>
-            <button class="speed-btn" data-sku="BEV-COF-001" data-title="Coastal Cold Brew" data-price="120" title="Tap to add Cold Brew">
-              <span class="speed-icon">🧊</span>
-              <span class="speed-name">Cold Brew</span>
-              <span class="speed-price">₹120 ➕</span>
-            </button>
-            <button class="speed-btn" data-sku="SNK-001" data-title="Crispy Beach Fries" data-price="100" title="Tap to add Beach Fries">
+            <button class="speed-btn" data-sku="SNK-001" data-title="Crispy Beach Fries" data-price="100">
               <span class="speed-icon">🍟</span>
               <span class="speed-name">Beach Fries</span>
               <span class="speed-price">₹100 ➕</span>
-            </button>
-            <button class="speed-btn" data-sku="SHK-CLS-001" data-title="Oreo &amp; Cream Shake" data-price="140" title="Tap to add Oreo Shake">
-              <span class="speed-icon">🍫</span>
-              <span class="speed-name">Oreo Shake</span>
-              <span class="speed-price">₹140 ➕</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Category Quick Filter Bar -->
-        <div class="category-filter-bar" id="categoryFilterBar">
-          <button class="cat-pill active" data-cat="all">🌟 All Offerings</button>
-          <button class="cat-pill" data-cat="soft-drinks">💧 Water &amp; Soft Drinks</button>
-          <button class="cat-pill" data-cat="energy-drinks">⚡ Energy Drinks</button>
-          <button class="cat-pill" data-cat="hot-beverages">☕ Filter Coffee &amp; Teas</button>
-          <button class="cat-pill" data-cat="shakes">🥤 27 Thick Shakes</button>
-          <button class="cat-pill" data-cat="mojitos">🍹 Beach Mojitos</button>
-          <button class="cat-pill" data-cat="snacks">🍟 Crispy Beach Bites</button>
-          <button class="cat-pill" data-cat="icecream">🍨 Ice Creams</button>
-          <button class="cat-pill" data-cat="beach-services">🌊 Beach Experiences</button>
-        </div>
-
-        <!-- Toolbar: Search & View Mode Toggle -->
-        <div class="catalog-toolbar">
-          <div class="search-box">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="searchInput" placeholder="Search water bottle, Thums Up, Red Bull, coffee, fries...">
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <div class="catalog-stats" id="catalogStats">Loading catalog...</div>
-            <button class="btn-grid-toggle" id="btnToggleGridView" title="Toggle between Grid View and Compact Mobile List View">
-              <span id="gridToggleIcon">📋</span> <span id="gridToggleText">List</span>
             </button>
           </div>
         </div>
 
         <!-- Dynamic Items Grid -->
         <div class="items-grid" id="itemsGrid">
-          <!-- Rendered by pos.js -->
+          <!-- Rendered smoothly by pos.js -->
         </div>
       </div>
 
-      <!-- VIEW 2: Tables Live Floor View & Takeaways -->
-      <div id="viewTablesGrid" style="display: none; padding: 1.5rem; overflow-y: auto; height: 100%;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+      <!-- VIEW 2: Tables Live Floor View -->
+      <div id="viewTablesGrid" class="tables-floor-panel" style="display: none;">
+        <div class="tables-floor-header">
           <div>
-            <h2 style="font-family: var(--font-heading); font-size: 1.4rem; color: var(--color-gold);">
-              Anchor Cafe &bull; Beach Tables &amp; Takeaway Floor
-            </h2>
-            <p style="font-size: 0.85rem; color: var(--color-foam); opacity: 0.85;">
-              Tap any table or takeaway to view items, unit costs, running bills, or tick 1-tap payment complete.
-            </p>
+            <h2>Beach Dining Tables &amp; Takeaway Orders</h2>
+            <p>Tap any table to inspect ordered items, advance preparation status, or collect payment.</p>
           </div>
-          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-            <!-- Increase / Decrease Table Count Controls -->
-            <div style="display: flex; align-items: center; gap: 0.4rem; background: rgba(11, 37, 69, 0.8); border: 1px solid var(--color-gold); padding: 0.25rem 0.6rem; border-radius: var(--radius-sm);">
-              <span style="font-size: 0.75rem; color: var(--color-foam); font-weight: 600;">Tables:</span>
-              <button class="btn-outline" id="btnDecreaseTable" style="padding: 0.2rem 0.5rem; font-size: 0.85rem; font-weight: 800; min-width: 28px;" title="Decrease Table Count">➖</button>
-              <span id="currentTableCountBadge" style="color: var(--color-gold); font-weight: 800; font-size: 0.85rem;">9 Tables</span>
-              <button class="btn-outline" id="btnIncreaseTable" style="padding: 0.2rem 0.5rem; font-size: 0.85rem; font-weight: 800; min-width: 28px;" title="Increase Table Count">➕</button>
-            </div>
-            <button class="btn-outline" id="btnOpenLinkTablesModal" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: #52B788; color: #74C69D;" title="Link or merge tables for large parties (e.g. 40 people on Tables 1, 3, 5, 8)">
-              🔗 Link / Merge Tables
-            </button>
-            <button class="btn-outline" id="btnRefreshTables" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
-              🔄 Refresh Floor
-            </button>
-          </div>
+          <button class="btn-refresh-tables" id="btnRefreshTables">
+            🔄 Refresh Floor
+          </button>
         </div>
 
-        <!-- Dedicated Active Takeaway Orders Section -->
-        <div class="takeaways-section" id="takeawaysSection" style="margin-bottom: 1.5rem; background: rgba(11, 37, 69, 0.65); border: 1px solid rgba(72, 202, 228, 0.35); border-radius: var(--radius-md); padding: 1rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h3 style="font-size: 1rem; color: #48CAE4; display: flex; align-items: center; gap: 0.4rem; margin: 0;">
-              <span>🛍️</span> Active Takeaway &amp; Parcel Orders (<span id="takeawaysCount">0</span>)
-            </h3>
-            <span style="font-size: 0.75rem; color: var(--color-sand-muted);">Orders flagged for customer parcel pickup</span>
+        <!-- Takeaway Parcel Orders -->
+        <div class="takeaways-section" id="takeawaysSection">
+          <div class="takeaways-header">
+            <h3><span>🛍️</span> Active Takeaway Orders (<span id="takeawaysCount">0</span>)</h3>
           </div>
-          <div class="takeaways-grid" id="takeawaysGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.85rem;">
+          <div class="takeaways-grid" id="takeawaysGrid">
             <!-- Populated dynamically -->
           </div>
         </div>
 
-        <!-- Dining Tables Title -->
-        <div style="margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
-          <h3 style="font-size: 1rem; color: var(--color-gold); display: flex; align-items: center; gap: 0.4rem; margin: 0;">
-            <span>🪑</span> Dining Tables (<span id="tablesGridOccupiedCount">0</span> Active Bills)
-          </h3>
-          <span style="font-size: 0.75rem; color: var(--color-sand-muted);">Beach sand dining tables</span>
-        </div>
-
-        <!-- Interactive Tables Grid -->
-        <div class="nine-tables-grid" id="nineTablesGrid">
-          <!-- Rendered dynamically for Table 1 to Table N -->
+        <!-- Dining Tables Grid -->
+        <div class="dining-tables-section">
+          <h3><span>🪑</span> Seated Tables (<span id="tablesGridOccupiedCount">0</span> Active Bills)</h3>
+          <div class="nine-tables-grid" id="nineTablesGrid">
+            <!-- Rendered dynamically for Table 1 to 9 -->
+          </div>
         </div>
       </div>
 
     </section>
 
     <!-- Right: Order Cart & Table Panel -->
-    <aside class="pos-cart-panel">
-      <!-- Order Location & Table Header -->
+    <aside class="pos-cart-panel" id="posCartPanel">
+      
+      <!-- Cart Header -->
       <div class="cart-header-section">
         <div class="cart-title-row">
-          <h2>Active Table Order</h2>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <button class="btn-outline" id="btnClearCart" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">Clear</button>
-            <button class="btn-close-mobile-cart" id="btnCloseMobileCart" title="Close and return to menu">&times;</button>
+          <div>
+            <h2>Active Order Ticket</h2>
+            <span class="cart-table-tag" id="cartActiveTableTag">Table 1</span>
+          </div>
+          <div class="cart-header-actions">
+            <button class="btn-cart-clear" id="btnClearCart" title="Clear draft additions">Clear</button>
+            <button class="btn-close-mobile-cart" id="btnCloseMobileCart" title="Close cart and return to menu">&times;</button>
           </div>
         </div>
 
-        <!-- 9 Tables Fast Selector Bar -->
-        <div style="margin-bottom: 0.6rem;">
-          <label style="font-size: 0.75rem; color: var(--color-gold); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 0.3rem;">
-            Select Dining Table (1 - 9):
-          </label>
-          <div class="table-pills-row" id="tablePillsRow">
-            <button class="table-pill active" data-table="Table 1">T1</button>
-            <button class="table-pill" data-table="Table 2">T2</button>
-            <button class="table-pill" data-table="Table 3">T3</button>
-            <button class="table-pill" data-table="Table 4">T4</button>
-            <button class="table-pill" data-table="Table 5">T5</button>
-            <button class="table-pill" data-table="Table 6">T6</button>
-            <button class="table-pill" data-table="Table 7">T7</button>
-            <button class="table-pill" data-table="Table 8">T8</button>
-            <button class="table-pill" data-table="Table 9">T9</button>
-            <button class="table-pill" data-table="Takeaway">🛍️ Pick</button>
-          </div>
-        </div>
-
-        <!-- Guest Details -->
-        <div class="cart-inputs-row">
-          <input type="text" id="selectedTableDisplay" class="cart-input" value="Table 1" readonly style="font-weight: 700; color: var(--color-gold); text-align: center;">
-          <input type="text" id="guestNameInput" class="cart-input" placeholder="Guest / Phone (Optional)" value="Guest">
-        </div>
-
-        <!-- Active Table Append / Reorder Notification Banner -->
-        <div id="cartActiveTableNotice" style="display: none; padding: 0.5rem 0.75rem; margin-top: 0.45rem; border-radius: var(--radius-sm); font-size: 0.8rem; background: rgba(82, 183, 136, 0.15); border: 1px solid #52B788; color: #74C69D; line-height: 1.35;">
-          <div style="font-weight: 700; display: flex; align-items: center; justify-content: space-between;">
-            <span id="activeTableNoticeTitle">🔔 Table Active Bill</span>
-            <span id="activeTableNoticeBill" style="color: var(--color-gold); font-size: 0.85rem; font-weight: 800;">₹0</span>
-          </div>
-          <div id="activeTableNoticeText" style="font-size: 0.72rem; color: var(--color-foam); opacity: 0.9; margin-top: 0.2rem;">
-            Items added below will append directly to this table's running bill.
-          </div>
+        <!-- Guest Name Input (Optional) -->
+        <div class="cart-guest-row">
+          <input type="text" id="guestNameInput" class="guest-input" placeholder="Guest Name / Phone (Optional)" value="Guest">
         </div>
       </div>
 
-      <!-- Cart Items List -->
+      <!-- Cart Items List (Placed Order Stepper + Draft Additions) -->
       <div class="cart-items-list" id="cartItemsList">
-        <div class="cart-empty-state">
-          <div class="empty-icon">☕</div>
-          <p>Table order is currently empty</p>
-          <small>Tap water bottle, soft drinks, coffee, or snacks to add</small>
-        </div>
+        <!-- Rendered dynamically -->
       </div>
 
       <!-- Cart Totals & Simple Payment Confirmation -->
       <div class="cart-footer-section">
         <div class="summary-line">
-          <span>Items Total (<span id="cartCount">0</span> items)</span>
+          <span>Items in Draft (<span id="cartCount">0</span> items)</span>
           <span id="subtotalDisplay">₹0</span>
         </div>
         <div class="summary-line total-line">
           <span>Total Table Bill</span>
-          <span id="finalTotalDisplay">₹0</span>
+          <span id="finalTotalDisplay" class="final-total">₹0</span>
         </div>
 
-        <!-- Fast Payment Confirmation Ticks (No QR Needed!) -->
-        <div style="margin-bottom: 0.75rem;">
-          <label style="font-size: 0.75rem; color: var(--color-sand); font-weight: 600; display: block; margin-bottom: 0.35rem;">
-            Tick Payment Method:
-          </label>
+        <!-- Fast Payment Method Ticks -->
+        <div class="payment-method-selector">
+          <label>Payment Method:</label>
           <div class="payment-ticks-row">
-            <button class="pay-tick-btn active" data-method="PHONEPE">
-              📱 PhonePe
-            </button>
-            <button class="pay-tick-btn" data-method="GPAY">
-              🔵 GPay
-            </button>
-            <button class="pay-tick-btn" data-method="CASH">
-              💵 Cash
-            </button>
-            <button class="pay-tick-btn" data-method="CARD">
-              💳 Card
-            </button>
+            <button class="pay-tick-btn active" data-method="PHONEPE">📱 PhonePe</button>
+            <button class="pay-tick-btn" data-method="GPAY">🔵 GPay</button>
+            <button class="pay-tick-btn" data-method="CASH">💵 Cash</button>
+            <button class="pay-tick-btn" data-method="CARD">💳 Card</button>
           </div>
         </div>
 
         <!-- Action Buttons -->
-        <div style="display: flex; flex-direction: column; gap: 0.45rem;">
-          <!-- 1-Tap Payment Tick & Confirm -->
-          <button class="btn-gold" id="btnConfirmPaymentAndOrder" style="width: 100%; padding: 0.75rem; font-size: 0.9rem;">
-            ✅ 1-Tap Confirm &amp; Settle
+        <div class="cart-action-buttons">
+          <button class="btn-confirm-settle" id="btnConfirmPaymentAndOrder">
+            ✅ 1-Tap Settle &amp; Free Table
           </button>
-
-          <!-- Or Pay Later / Running Table Tab -->
-          <button class="btn-outline" id="btnFireKotOnly" style="width: 100%; padding: 0.55rem; font-size: 0.8rem;">
-            ⏳ Save to Table Tab (Pay Later)
+          <button class="btn-save-tab" id="btnFireKotOnly">
+            💾 Save to Table Tab (Pay Later)
           </button>
         </div>
       </div>
     </aside>
   </main>
 
-  <!-- Floating Quick Cart Bar for Android & Mobile Devices -->
+  <!-- Mobile Floating Bottom Bar (Ultra-responsive) -->
   <div class="mobile-floating-cart" id="mobileFloatingCart">
-    <div class="mobile-cart-info">
-      <button class="mobile-cart-table-btn" id="btnOpenTableBottomSheet" title="Tap to select or allot table (Table 1 to 9)">
-        <span class="m-tbl-icon">🪑</span>
-        <span id="mobileCartTableLabel">Table 1</span>
-        <span class="m-tbl-arrow">▲ Allot</span>
-      </button>
-      <span class="mobile-cart-summary">
-        <span id="mobileCartCount">0</span> items &bull; <strong id="mobileCartTotal" style="color: var(--color-gold);">₹0</strong>
-      </span>
-    </div>
-    <button class="mobile-cart-action-btn" id="btnOpenMobileCart">
-      <span>Review &amp; Pay</span>
-      <span style="font-size: 1.15rem; line-height: 1;">➔</span>
-    </button>
-  </div>
-
-  <!-- Native Mobile Table Selector (Scroll-Up Bottom Sheet Drawer) -->
-  <div class="table-sheet-backdrop" id="tableSheetBackdrop"></div>
-  <div class="mobile-table-bottom-sheet" id="mobileTableBottomSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTableTitle">
-    <div class="table-sheet-header">
-      <div class="table-sheet-drag-handle"></div>
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin-top: 0.25rem;">
-        <div>
-          <h3 id="sheetTableTitle" style="margin: 0; color: var(--color-gold); font-size: 1.15rem; font-family: var(--font-heading); display: flex; align-items: center; gap: 0.4rem;">
-            <span>🪑</span> Allot Order to Table (T1 - T9)
-          </h3>
-          <span style="font-size: 0.75rem; color: var(--color-foam); opacity: 0.85;">
-            Tap any table below to allot order &amp; track running bill:
-          </span>
-        </div>
-        <button class="btn-close-table-sheet" id="btnCloseTableBottomSheet" title="Close table selector">&times;</button>
+    <div class="mobile-cart-info" id="btnOpenMobileCart">
+      <span class="m-cart-icon">🛒</span>
+      <div class="m-cart-text">
+        <span id="mobileCartTableLabel" class="m-tbl-badge">Table 1</span>
+        <span class="m-items-summary"><span id="mobileCartCount">0</span> items &bull; <strong id="mobileCartTotal">₹0</strong></span>
       </div>
     </div>
-
-    <!-- Active Selection Info Banner in Sheet -->
-    <div class="table-sheet-active-banner">
-      <span>Currently Allotted to: <strong id="sheetActiveTableText" style="color: #52B788;">Table 1</strong></span>
-      <span id="sheetActiveTableState" style="font-size: 0.72rem; color: var(--color-gold);">Ready for Order</span>
-    </div>
-
-    <!-- Scrollable Tables Grid for Mobile Thumbs -->
-    <div class="table-sheet-grid" id="tableSheetGrid">
-      <!-- Populated dynamically with Table 1 to 9 + Takeaway cards -->
-    </div>
+    <button class="mobile-cart-action-btn" id="btnMobileReviewAction">
+      <span>Review &amp; Settle</span>
+      <span>➔</span>
+    </button>
   </div>
 
   <!-- Mobile Cart Drawer Backdrop Overlay -->
   <div class="cart-mobile-backdrop" id="cartMobileBackdrop"></div>
 
-  <!-- Live Table Detail & Running Bill Modal -->
-  <div class="modal-overlay" id="tableDetailModal">
-    <div class="modal-content" style="max-width: 560px;">
+  <!-- Live Table Detail Modal (Order Breakdown & 1-Tap Confirmation Stepper) -->
+  <div class="modal-overlay" id="tableDetailModal" role="dialog" aria-modal="true">
+    <div class="modal-content">
       <div class="modal-header">
         <div>
-          <h3 id="modalTableTitle" style="color: var(--color-gold);">Table 1 Active Order</h3>
-          <span id="modalTableOrderNum" style="font-size: 0.75rem; color: var(--color-foam); opacity: 0.85;"></span>
+          <h3 id="modalTableTitle">Table 1 Order Details</h3>
+          <span id="modalTableOrderNum" class="modal-order-meta"></span>
         </div>
-        <button class="modal-close" id="btnCloseTableModal">&times;</button>
+        <button class="modal-close" id="btnCloseTableModal" aria-label="Close modal">&times;</button>
       </div>
 
-      <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
-        <!-- Live Kitchen & Dining Lifecycle Status Stepper -->
+      <div class="modal-body">
+        <!-- 4-Step Table Order Lifecycle Stepper -->
         <div class="table-order-status-card" id="modalOrderStatusCard">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
-            <div style="font-size: 0.78rem; font-weight: 800; color: var(--color-gold); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 0.35rem;">
-              <span>🍽️</span> <span>Order Lifecycle Status:</span>
-            </div>
-            <span id="modalStatusBadge" style="font-size: 0.75rem; font-weight: 800; padding: 0.2rem 0.65rem; border-radius: 12px; background: rgba(231,111,81,0.25); color: #E76F51; border: 1px solid #E76F51;">
-              🟡 1. ORDERED (PENDING)
-            </span>
+          <div class="modal-status-top">
+            <span class="modal-status-label">Live Table Status:</span>
+            <span class="modal-status-badge" id="modalStatusBadge">🟡 1. ORDERED (COOKING)</span>
           </div>
 
-          <!-- Step Progression Pills -->
           <div class="status-stepper-grid">
             <div class="step-box active-pending" id="stepBoxOrdered">
-              1. Ordered
+              <span>🟡 1</span>
+              <div>Ordered</div>
             </div>
             <div class="step-box" id="stepBoxReady">
-              2. Ready
+              <span>🔔 2</span>
+              <div>Food Ready</div>
             </div>
             <div class="step-box" id="stepBoxServed">
-              3. Served
+              <span>🍽️ 3</span>
+              <div>Served</div>
             </div>
             <div class="step-box" id="stepBoxPaid">
-              4. Paid
+              <span>💰 4</span>
+              <div>Paid</div>
             </div>
           </div>
 
-          <!-- 1-Tap Mobile Status Confirmation Button -->
-          <button class="btn-advance-status" id="btnAdvanceStatusAction" type="button">
+          <button class="btn-advance-status" id="btnAdvanceStatusAction">
             <span id="advanceActionIcon">🔔</span>
-            <span id="advanceActionLabel">Mark Food as Ready</span>
+            <span id="advanceActionLabel">Confirm Food is Ready</span>
           </button>
         </div>
 
-        <div style="font-size: 0.78rem; font-weight: 800; color: var(--color-gold); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem;">
-          📋 Ordered Items Breakdown:
-        </div>
-        <!-- Ordered Items Table breakdown -->
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 1rem;">
+        <!-- Ordered Items Table -->
+        <table class="modal-items-table">
           <thead>
-            <tr style="border-bottom: 1px solid var(--glass-border); color: var(--color-gold); font-size: 0.8rem; text-align: left;">
-              <th style="padding: 0.4rem 0;">Qty</th>
-              <th style="padding: 0.4rem 0;">Item Ordered</th>
-              <th style="padding: 0.4rem 0; text-align: right;">Unit Cost</th>
-              <th style="padding: 0.4rem 0; text-align: right;">Total Cost</th>
+            <tr>
+              <th>Qty</th>
+              <th>Offering</th>
+              <th style="text-align: right;">Price</th>
+              <th style="text-align: right;">Total</th>
             </tr>
           </thead>
           <tbody id="modalTableItemsTbody">
-            <!-- Populated dynamically -->
+            <!-- Dynamically populated -->
           </tbody>
         </table>
 
         <!-- Total Bill -->
-        <div style="display: flex; justify-content: space-between; align-items: baseline; background: rgba(201, 168, 106, 0.15); padding: 0.75rem 1rem; border-radius: var(--radius-sm); border: 1px solid var(--color-gold);">
-          <span style="font-weight: 700; color: var(--color-sand);">Total Table Amount</span>
-          <span id="modalTableTotalAmount" style="font-family: var(--font-heading); font-size: 1.4rem; font-weight: 800; color: var(--color-gold);">₹0</span>
-        </div>
-
-        <!-- Quick 1-Tap Payment Tick -->
-        <div style="margin-top: 1.25rem;">
-          <div style="font-size: 0.8rem; font-weight: 700; color: var(--color-sand); margin-bottom: 0.4rem;">
-            Tick Paid Method to Settle Table:
-          </div>
-          <div class="payment-ticks-row" id="modalPaymentTicks">
-            <button class="pay-tick-btn active" data-settle-method="PHONEPE">📱 PhonePe</button>
-            <button class="pay-tick-btn" data-settle-method="GPAY">🔵 GPay</button>
-            <button class="pay-tick-btn" data-settle-method="CASH">💵 Cash</button>
-            <button class="pay-tick-btn" data-settle-method="CARD">💳 Card</button>
-          </div>
+        <div class="modal-total-banner">
+          <span>Total Table Bill Amount:</span>
+          <strong id="modalTableTotalAmount">₹0</strong>
         </div>
       </div>
 
-      <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
-        <button class="btn-outline" id="btnModalAddMoreItems">
+      <div class="modal-footer">
+        <button class="btn-modal-print" id="btnModalPrintBill">
+          🖨️ Thermal Print Receipt
+        </button>
+        <button class="btn-modal-add" id="btnModalAddMoreItems">
           ➕ Add More Items
         </button>
-        <button class="btn-outline" id="btnModalPrintBill" style="border-color: #48CAE4; color: #48CAE4; display: flex; align-items: center; gap: 0.3rem;">
-          <span>🖨️</span> Print Bill Receipt
-        </button>
-        <button class="btn-gold" id="btnModalSettlePayment">
-          ✅ Confirm Paid &amp; Free Table
+        <button class="btn-modal-settle" id="btnModalSettlePayment">
+          💳 Settle &amp; Free Table
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Shake Variant Modal -->
-  <div class="modal-overlay" id="shakeVariantModal">
-    <div class="modal-content">
+  <!-- Shake Variant Selection Modal (For 27 Shakes) -->
+  <div class="modal-overlay" id="shakeVariantModal" role="dialog" aria-modal="true">
+    <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
-        <h3 id="variantModalTitle">Select Shake Variant</h3>
+        <h3 id="shakeModalTitle">Select Shake Preparation</h3>
         <button class="modal-close" id="btnCloseVariantModal">&times;</button>
       </div>
       <div class="modal-body">
-        <p style="font-size: 0.85rem; color: var(--color-sand-muted); margin-bottom: 0.75rem;">
-          Choose consistency &amp; preparation for this signature shake:
+        <p style="font-size: 0.82rem; color: var(--color-foam); margin-bottom: 0.85rem;">
+          Select customer's preferred texture:
         </p>
-        <div class="variants-grid" id="variantsGrid">
+        <div class="shake-variants-grid" id="shakeVariantsList">
           <!-- Populated dynamically -->
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-outline" id="btnCancelVariant">Cancel</button>
-        <button class="btn-gold" id="btnConfirmVariant">Add to Table Order</button>
+        <button class="btn-outline" id="btnCancelVariantModal" style="width: 100%;">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Edit Item Price / Cost Modal -->
-  <div class="modal-overlay" id="editPriceModal">
-    <div class="modal-content" style="max-width: 500px;">
-      <div class="modal-header">
-        <h3 id="editPriceModalTitle" style="color: var(--color-gold);">✏️ Modify Item Price &amp; Cost</h3>
-        <button class="modal-close" id="btnCloseEditPriceModal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 0.85rem; color: var(--color-foam); margin-bottom: 1rem;" id="editPriceModalSubtitle">
-          Update the customer selling price and cafe base cost for this offering. Changes save permanently to the database.
-        </p>
+  <!-- Thermal Receipt Printable Container (Hidden off-screen) -->
+  <div id="printableBillReceipt" class="printable-bill-receipt" style="display: none;"></div>
 
-        <!-- Standard Item Price & Cost Inputs -->
-        <div id="standardPriceInputGroup" style="margin-bottom: 1rem;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-            <div>
-              <label for="inputNewSellingPrice" style="font-size: 0.8rem; color: var(--color-sand); font-weight: 700; display: block; margin-bottom: 0.35rem;">
-                Customer Selling Price (₹):
-              </label>
-              <input type="number" id="inputNewSellingPrice" class="cart-input" style="font-size: 1.15rem; font-weight: 700; color: var(--color-gold); padding: 0.55rem;" placeholder="e.g. 125">
-            </div>
-            <div>
-              <label for="inputNewBaseCost" style="font-size: 0.8rem; color: var(--color-sand); font-weight: 700; display: block; margin-bottom: 0.35rem;">
-                Cafe Base Cost (₹):
-              </label>
-              <input type="number" id="inputNewBaseCost" class="cart-input" style="font-size: 1.15rem; font-weight: 700; color: #52B788; padding: 0.55rem;" placeholder="e.g. 95">
-            </div>
-          </div>
-          <div id="marginPreviewBox" style="background: rgba(82, 183, 136, 0.12); border: 1px solid rgba(82, 183, 136, 0.3); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.8rem; color: #52B788; display: flex; justify-content: space-between; align-items: center;">
-            <span>Estimated Profit Margin:</span>
-            <strong id="marginDisplay">₹0 (0%)</strong>
-          </div>
-        </div>
-
-        <!-- Shake Variants Price Inputs (if applicable) -->
-        <div id="variantPriceInputsGroup" style="display: none; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem;">
-          <label style="font-size: 0.85rem; color: var(--color-sand); font-weight: 600;">Variant Selling Prices &amp; Costs (₹):</label>
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
-            <div style="background: rgba(255,255,255,0.04); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
-              <span style="font-size: 0.75rem; color: var(--color-gold); font-weight: 700; display: block; margin-bottom: 0.25rem;">Milkshake:</span>
-              <label style="font-size: 0.65rem; color: var(--color-foam);">Selling (₹):</label>
-              <input type="number" id="inputVarMilkPrice" class="cart-input" style="font-weight: 700; margin-bottom: 0.35rem;">
-              <label style="font-size: 0.65rem; color: #52B788;">Cost (₹):</label>
-              <input type="number" id="inputVarMilkCost" class="cart-input" style="font-weight: 700; color: #52B788;">
-            </div>
-            <div style="background: rgba(255,255,255,0.04); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
-              <span style="font-size: 0.75rem; color: var(--color-gold); font-weight: 700; display: block; margin-bottom: 0.25rem;">Blended:</span>
-              <label style="font-size: 0.65rem; color: var(--color-foam);">Selling (₹):</label>
-              <input type="number" id="inputVarBlendPrice" class="cart-input" style="font-weight: 700; margin-bottom: 0.35rem;">
-              <label style="font-size: 0.65rem; color: #52B788;">Cost (₹):</label>
-              <input type="number" id="inputVarBlendCost" class="cart-input" style="font-weight: 700; color: #52B788;">
-            </div>
-            <div style="background: rgba(255,255,255,0.04); padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
-              <span style="font-size: 0.75rem; color: var(--color-gold); font-weight: 700; display: block; margin-bottom: 0.25rem;">Thickshake:</span>
-              <label style="font-size: 0.65rem; color: var(--color-foam);">Selling (₹):</label>
-              <input type="number" id="inputVarThickPrice" class="cart-input" style="font-weight: 700; margin-bottom: 0.35rem;">
-              <label style="font-size: 0.65rem; color: #52B788;">Cost (₹):</label>
-              <input type="number" id="inputVarThickCost" class="cart-input" style="font-weight: 700; color: #52B788;">
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-outline" id="btnCancelEditPrice">Cancel</button>
-        <button class="btn-gold" id="btnSaveUpdatedPrice">💾 Save Updated Cost &amp; Price</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Daily Expenses / Petty Cash Modal -->
-  <div class="modal-overlay" id="expensesModal">
-    <div class="modal-content" style="max-width: 650px; width: 95%;">
-      <div class="modal-header">
-        <h3 style="color: #FFB4A2; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
-          <span>💸</span> Daily Cafe Expenses &amp; Petty Cash
-        </h3>
-        <button class="modal-close" id="btnCloseExpensesModal">&times;</button>
-      </div>
-      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
-        
-        <!-- Live Sales vs Expenses Summary Bar -->
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;">
-          <div style="background: rgba(82, 183, 136, 0.15); border: 1px solid rgba(82, 183, 136, 0.4); padding: 0.75rem; border-radius: var(--radius-sm); text-align: center;">
-            <div style="font-size: 0.72rem; color: #52B788; text-transform: uppercase; font-weight: 700;">Today's Gross Sales</div>
-            <div style="font-size: 1.35rem; font-weight: 800; color: #52B788;" id="expSummaryGross">₹0</div>
-          </div>
-          <div style="background: rgba(230, 57, 70, 0.15); border: 1px solid rgba(230, 57, 70, 0.4); padding: 0.75rem; border-radius: var(--radius-sm); text-align: center;">
-            <div style="font-size: 0.72rem; color: #FFB4A2; text-transform: uppercase; font-weight: 700;">Today's Expenses</div>
-            <div style="font-size: 1.35rem; font-weight: 800; color: #E63946;" id="expSummaryTotal">₹0</div>
-          </div>
-          <div style="background: rgba(201, 168, 106, 0.15); border: 1px solid rgba(201, 168, 106, 0.4); padding: 0.75rem; border-radius: var(--radius-sm); text-align: center;">
-            <div style="font-size: 0.72rem; color: var(--color-gold); text-transform: uppercase; font-weight: 700;">Net In-Hand</div>
-            <div style="font-size: 1.35rem; font-weight: 800; color: var(--color-gold);" id="expSummaryNet">₹0</div>
-          </div>
-        </div>
-
-        <!-- Add Expense Form -->
-        <div style="background: rgba(6, 24, 44, 0.65); border: 1px solid rgba(201, 168, 106, 0.3); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1.25rem;">
-          <h4 style="font-size: 0.95rem; color: var(--color-gold); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.35rem; margin-top: 0;">
-            <span>➕</span> Record Requirement / Purchase
-          </h4>
-
-          <!-- Fast Preset Buttons -->
-          <div style="margin-bottom: 0.75rem;">
-            <span style="font-size: 0.75rem; color: var(--color-sand-muted); display: block; margin-bottom: 0.35rem;">Quick Requirement Presets:</span>
-            <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;" id="expensePresetBtns">
-              <button type="button" class="btn-outline exp-preset-btn" data-preset-title="Heritage Milk (5L)" data-preset-cat="MILK_DAIRY" data-preset-amt="300" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">🥛 Milk 5L</button>
-              <button type="button" class="btn-outline exp-preset-btn" data-preset-title="Fresh Lemons & Mint Leaves" data-preset-cat="GROCERIES_PRODUCE" data-preset-amt="100" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">🍋 Lemons &amp; Mint</button>
-              <button type="button" class="btn-outline exp-preset-btn" data-preset-title="Ice Cubes (4 Bags)" data-preset-cat="ICE_GAS" data-preset-amt="120" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">🧊 Ice Bags</button>
-              <button type="button" class="btn-outline exp-preset-btn" data-preset-title="Sandwich Bread & Buns" data-preset-cat="GROCERIES_PRODUCE" data-preset-amt="150" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">🍞 Bread &amp; Buns</button>
-              <button type="button" class="btn-outline exp-preset-btn" data-preset-title="Drinking Water Cans (20L x 3)" data-preset-cat="BEVERAGE_STOCK" data-preset-amt="90" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">💧 Water Cans</button>
-              <button type="button" class="btn-outline exp-preset-btn" data-preset-title="Commercial LPG Gas Cylinder" data-preset-cat="ICE_GAS" data-preset-amt="1800" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">⛽ Gas Cylinder</button>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-            <div>
-              <label for="expTitleInput" style="font-size: 0.75rem; color: var(--color-sand); display: block; margin-bottom: 0.25rem;">Requirement / Item Name:</label>
-              <input type="text" id="expTitleInput" class="cart-input" placeholder="e.g. Milk 5L, Ice, Lemons...">
-            </div>
-            <div>
-              <label for="expAmountInput" style="font-size: 0.75rem; color: var(--color-sand); display: block; margin-bottom: 0.25rem;">Amount Spent (₹):</label>
-              <input type="number" id="expAmountInput" class="cart-input" placeholder="Amount" style="font-weight: 700; color: #FFB4A2;">
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-            <div>
-              <label for="expCategorySelect" style="font-size: 0.75rem; color: var(--color-sand); display: block; margin-bottom: 0.25rem;">Category:</label>
-              <select id="expCategorySelect" class="cart-input" style="padding: 0.5rem;">
-                <option value="MILK_DAIRY">🥛 Milk &amp; Dairy</option>
-                <option value="GROCERIES_PRODUCE">🍋 Groceries &amp; Produce</option>
-                <option value="BEVERAGE_STOCK">🥤 Beverage Supplies &amp; Soda</option>
-                <option value="ICE_GAS">🧊 Ice Cubes &amp; LPG Gas</option>
-                <option value="PACKAGING">📦 Packaging &amp; Cups</option>
-                <option value="CLEANING_MAINTENANCE">🧹 Cleaning &amp; Maintenance</option>
-                <option value="STAFF_PETTY_CASH">👨‍🍳 Staff Petty Cash</option>
-                <option value="MISC_EXPENSE">📝 Miscellaneous</option>
-              </select>
-            </div>
-            <div>
-              <label for="expDeductionSelect" style="font-size: 0.75rem; color: var(--color-gold); font-weight: 700; display: block; margin-bottom: 0.25rem;">
-                Deduct Expense From:
-              </label>
-              <select id="expDeductionSelect" class="cart-input" style="padding: 0.5rem; font-weight: 600;">
-                <option value="TODAYS_SALES">💰 Deduct from Today's Sales</option>
-                <option value="YESTERDAYS_SALES">⏮️ Deduct from Yesterday's Sales</option>
-                <option value="PETTY_CASH">💵 Petty Cash Drawer</option>
-              </select>
-            </div>
-          </div>
-
-          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="expNotesInput" class="cart-input" placeholder="Notes (e.g. Paid by Cashier, Bill #42)" style="flex: 1; min-width: 200px;">
-            <button class="btn-gold" id="btnSaveExpense" style="white-space: nowrap; padding: 0.6rem 1.25rem;">
-              💾 Record &amp; Deduct
-            </button>
-          </div>
-        </div>
-
-        <!-- Recent Expenses Log -->
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.4rem;">
-            <h4 style="font-size: 0.9rem; color: var(--color-sand); margin: 0;">Expenses Recorded (<span id="expensesLogCount">0</span>)</h4>
-            <div style="display: flex; gap: 0.4rem;">
-              <button class="cat-pill active" id="btnFilterExpToday" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">Today</button>
-              <button class="cat-pill" id="btnFilterExpYesterday" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">Yesterday</button>
-              <button class="cat-pill" id="btnFilterExpAll" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">All</button>
-            </div>
-          </div>
-          <div id="expensesListContainer" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;">
-            <!-- Expenses rendered dynamically -->
-          </div>
-        </div>
-
-      </div>
-      <div class="modal-footer" style="display: flex; justify-content: flex-end;">
-        <button class="btn-outline" id="btnCloseExpensesModalBtn">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Link / Merge Tables Modal (Large Parties & 40 Guests on Multiple Tables) -->
-  <div class="modal-overlay" id="linkTablesModal">
-    <div class="modal-content" style="max-width: 500px;">
-      <div class="modal-header">
-        <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: var(--color-gold); display: flex; align-items: center; gap: 0.4rem; margin: 0;">
-          <span>🔗</span> Link / Merge Dining Tables (Group Party)
-        </h3>
-        <button class="modal-close" id="btnCloseLinkTablesModal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 0.85rem; color: var(--color-foam); opacity: 0.9; margin-bottom: 1rem;">
-          When a large group (e.g. 40 guests) sits across multiple tables (e.g. Tables 1, 3, 5, 8), select the primary table and secondary tables to consolidate into a single bill.
-        </p>
-
-        <div style="margin-bottom: 1rem;">
-          <label style="font-size: 0.8rem; color: var(--color-gold); font-weight: 700; display: block; margin-bottom: 0.35rem;">
-            Primary Master Table (Bill Consolidated Here):
-          </label>
-          <select id="selectPrimaryTable" class="cart-input" style="width: 100%; padding: 0.5rem; background: rgba(11,37,69,0.9); color: var(--color-sand); border: 1px solid var(--color-gold);">
-            <!-- Populated dynamically -->
-          </select>
-        </div>
-
-        <div style="margin-bottom: 1rem;">
-          <label style="font-size: 0.8rem; color: var(--color-gold); font-weight: 700; display: block; margin-bottom: 0.35rem;">
-            Secondary Tables to Merge (Items will move to Master Table):
-          </label>
-          <div id="secondaryTablesCheckboxes" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1);">
-            <!-- Populated dynamically -->
-          </div>
-        </div>
-
-        <div style="font-size: 0.75rem; color: #52B788; background: rgba(82, 183, 136, 0.1); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border-left: 3px solid #52B788;">
-          💡 Tip: Merging moves all ordered items into the Primary Table so the host can pay one single bill. The secondary tables are automatically freed.
-        </div>
-      </div>
-      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem;">
-        <button class="btn-outline" id="btnCancelLinkTables">Cancel</button>
-        <button class="btn-primary" id="btnConfirmMergeTables" style="background: var(--color-gold); color: #051622; font-weight: 700; padding: 0.5rem 1.25rem;">
-          🔀 Merge Tables into One Bill
-        </button>
-      </div>
-  <!-- Table-Wise Order Tracking & Performance Modal (Daily & Monthly) -->
-  <div class="modal-overlay" id="tableTrackingModal">
-    <div class="modal-content" style="max-width: 720px; width: 95%;">
-      <div class="modal-header">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <span style="font-size: 1.3rem;">📊</span>
-          <div>
-            <h3 style="color: var(--color-gold); font-size: 1.15rem; margin: 0;">Table-Wise Order &amp; Revenue Tracking</h3>
-            <span style="font-size: 0.75rem; color: var(--color-foam); opacity: 0.85;">Track which table gets how many orders (Daily &amp; Monthly)</span>
-          </div>
-        </div>
-        <button class="modal-close" id="btnCloseTableTrackingModal">&times;</button>
-      </div>
-      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
-        
-        <!-- Filter Controls: Today, Yesterday, This Month, Date Picker -->
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; background: rgba(0,0,0,0.25); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
-          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
-            <button class="pill-btn active" id="btnTblTrackToday">Today</button>
-            <button class="pill-btn" id="btnTblTrackYesterday">Yesterday</button>
-            <button class="pill-btn" id="btnTblTrackMonth">This Month</button>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.4rem;">
-            <label style="font-size: 0.75rem; color: var(--color-gold); font-weight: 700;">Date:</label>
-            <input type="date" id="inputTblTrackDate" class="cart-input" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto; color: #FFF; background: #0A1626; border: 1px solid var(--color-gold);">
-          </div>
-        </div>
-
-        <!-- Grand KPI Summary for Period -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.6rem; margin-bottom: 1rem;">
-          <div style="background: rgba(11,37,69,0.8); border: 1px solid var(--color-gold); border-radius: var(--radius-sm); padding: 0.6rem; text-align: center;">
-            <span style="font-size: 0.7rem; color: var(--color-foam); text-transform: uppercase;">Total Sales</span>
-            <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: var(--color-gold);" id="tblTrackGrandRevenue">₹0</div>
-          </div>
-          <div style="background: rgba(11,37,69,0.8); border: 1px solid #52B788; border-radius: var(--radius-sm); padding: 0.6rem; text-align: center;">
-            <span style="font-size: 0.7rem; color: var(--color-foam); text-transform: uppercase;">Total Orders</span>
-            <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: #52B788;" id="tblTrackGrandOrders">0</div>
-          </div>
-          <div style="background: rgba(11,37,69,0.8); border: 1px solid #48CAE4; border-radius: var(--radius-sm); padding: 0.6rem; text-align: center;">
-            <span style="font-size: 0.7rem; color: var(--color-foam); text-transform: uppercase;">Active Tables Now</span>
-            <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 800; color: #48CAE4;" id="tblTrackActiveTablesNow">0</div>
-          </div>
-        </div>
-
-        <!-- Table Performance Table -->
-        <div style="overflow-x: auto;">
-          <table class="data-table" style="width: 100%; font-size: 0.8rem; border-collapse: collapse;">
-            <thead>
-              <tr style="border-bottom: 2px solid var(--color-gold); background: rgba(0,0,0,0.3);">
-                <th style="padding: 0.6rem 0.5rem; text-align: left; color: var(--color-gold);">Dining Table</th>
-                <th style="padding: 0.6rem 0.5rem; text-align: center; color: var(--color-gold);">Orders</th>
-                <th style="padding: 0.6rem 0.5rem; text-align: right; color: var(--color-gold);">Total Sales</th>
-                <th style="padding: 0.6rem 0.5rem; text-align: right; color: var(--color-gold);">Avg Bill</th>
-                <th style="padding: 0.6rem 0.5rem; text-align: center; color: var(--color-gold);">Paid / Unpaid</th>
-                <th style="padding: 0.6rem 0.5rem; text-align: center; color: var(--color-gold);">Current Floor Status</th>
-              </tr>
-            </thead>
-            <tbody id="tblTrackTableBody">
-              <tr>
-                <td colspan="6" style="text-align: center; padding: 1.5rem; color: var(--color-foam);">Loading table performance data...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-      </div>
-      <div class="modal-footer" style="display: flex; justify-content: flex-end;">
-        <button class="btn-outline" id="btnCloseTableTrackingModalBtn">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toast Container -->
-  <div class="toast-container" id="toastContainer"></div>
-
-  <!-- Printable Thermal Receipt Container (80mm standard) -->
-  <div id="printableBillReceipt" class="printable-thermal-slip" style="display: none;"></div>
-
-  <!-- Scripts -->
-  <script src="/socket.io/socket.io.js"></script>
+  <!-- Audio Chimes & Sound Engine -->
   <script src="/js/soundEffects.js"></script>
+
+  <!-- High-Performance Zero-Lag POS Controller -->
   <script src="/js/pos.js"></script>
+
 </body>
 </html>

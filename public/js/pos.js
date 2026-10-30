@@ -1,56 +1,55 @@
 /**
- * AnchorTrack 9-Tables POS & Fast Payment Terminal Logic
- * Optimized for Anchor Cafe (Ramapuram Beach, Chirala)
- * - 9 Fixed Tables Live Floor Tracking (Table 1 to Table 9)
- * - Itemized Table Order Breakdown (Item Name, Qty, Unit Cost, Line Total Cost)
- * - 1-Tap Payment Confirmation Ticks (PhonePe, GPay, Cash, Card) - Zero QR friction!
- * - Packaged Drinking Water, Soft Drinks & Energy Drinks tracking
+ * AnchorTrack POS & Table Order Tracking Terminal
+ * Ultra-Smooth, Zero-Lag Architecture (Locked 60 FPS)
+ * Anchor Cafe - Ramapuram Beach, Chirala
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const socket = typeof io !== 'undefined' ? io() : null;
+  // ==========================================================================
+  // 1. Audio & Sound Engine
+  // ==========================================================================
   const soundEngine = window.soundEngine;
-
-  // Sound toggle button
   const btnSoundToggle = document.getElementById('btnSoundToggle');
-  if (btnSoundToggle) {
-    btnSoundToggle.textContent = soundEngine.isMuted() ? '🔇 Sound: MUTED' : '🔊 Sound: ON';
+  if (btnSoundToggle && soundEngine) {
+    btnSoundToggle.textContent = soundEngine.isMuted() ? '🔇 Sound: OFF' : '🔊 Sound: ON';
     btnSoundToggle.addEventListener('click', () => {
       const isMuted = soundEngine.toggleMute();
-      btnSoundToggle.textContent = isMuted ? '🔇 Sound: MUTED' : '🔊 Sound: ON';
-      showToast(isMuted ? 'Audio alerts muted' : 'Audio alerts enabled', 'info');
+      btnSoundToggle.textContent = isMuted ? '🔇 Sound: OFF' : '🔊 Sound: ON';
+      showToast(isMuted ? 'Sound muted' : 'Sound enabled', 'info');
     });
   }
 
-  // --- State Variables ---
+  // ==========================================================================
+  // 2. Global State & Multi-Table Cart Persistence
+  // ==========================================================================
+  let selectedTable = 'Table 1';
+  let currentTotalTables = 9;
+  let tablesData = [];
+  let activeTakeawaysData = [];
   let menuCatalog = [];
   let currentCategory = 'all';
   let searchQuery = '';
-  // --- Persistent Per-Table Draft Carts (Enterprise POS Architecture) ---
-  // Guarantees Table 1, Table 3, Table 5, Table 8 maintain independent carts with zero cross-contamination,
-  // surviving reloads, mobile tab switching, and network disconnects.
-  const DRAFTS_KEY = 'anchortrack_table_drafts';
-  const tableCarts = (function() {
-    try {
-      const saved = localStorage.getItem(DRAFTS_KEY);
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      return {};
-    }
-  })();
+  let selectedPaymentMethod = 'PHONEPE';
+  let modalActiveOrder = null;
+  let lastTablesFingerprint = '';
+
+  // Multi-table draft carts (persisted in localStorage)
+  let tableCarts = {};
+  try {
+    const raw = localStorage.getItem('anchortrack_table_carts_v2');
+    if (raw) tableCarts = JSON.parse(raw);
+  } catch (e) {
+    tableCarts = {};
+  }
 
   function persistTableCarts() {
     try {
-      localStorage.setItem(DRAFTS_KEY, JSON.stringify(tableCarts));
-    } catch (e) {
-      console.warn('Could not persist table drafts:', e);
-    }
+      localStorage.setItem('anchortrack_table_carts_v2', JSON.stringify(tableCarts));
+    } catch (e) {}
   }
 
   function getTableCart(tName = selectedTable) {
-    if (!tableCarts[tName]) {
-      tableCarts[tName] = [];
-    }
+    if (!tableCarts[tName]) tableCarts[tName] = [];
     return tableCarts[tName];
   }
 
@@ -60,189 +59,100 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getActiveOrderForSelectedTable(tName = selectedTable) {
-    const matched = tablesData.find(t => t.tableNumber === tName);
-    if (matched && matched.isOccupied && matched.order) {
-      return matched.order;
+    if (tName === 'Takeaway') {
+      return activeTakeawaysData[0] || null;
     }
-    return null;
+    const matched = tablesData.find(t => t.tableNumber === tName);
+    return (matched && matched.isOccupied && matched.order) ? matched.order : null;
   }
 
-  let selectedTable = 'Table 1';
-  let selectedPaymentMethod = 'PHONEPE';
-  let modalSelectedPaymentMethod = 'PHONEPE';
-  let tablesData = [];
-  let activeTakeawaysData = [];
-  let currentTotalTables = 9;
-  let modalActiveOrder = null;
-  let currentExpenseFilter = 'today';
-
-  // DOM Elements - View Switchers & Capacity Controls
+  // ==========================================================================
+  // 3. DOM Elements Cache
+  // ==========================================================================
+  const tablePillsRow = document.getElementById('tablePillsRow');
+  const topActiveTableLabel = document.getElementById('topActiveTableLabel');
+  const topActiveTableBill = document.getElementById('topActiveTableBill');
+  const btnTopCheckStatus = document.getElementById('btnTopCheckStatus');
+  const searchInput = document.getElementById('searchInput');
+  const categoryFilterBar = document.getElementById('categoryFilterBar');
+  const itemsGrid = document.getElementById('itemsGrid');
   const tabBtnMenuCatalog = document.getElementById('tabBtnMenuCatalog');
   const tabBtnTablesOverview = document.getElementById('tabBtnTablesOverview');
   const viewMenuCatalog = document.getElementById('viewMenuCatalog');
   const viewTablesGrid = document.getElementById('viewTablesGrid');
-  const nineTablesGrid = document.getElementById('nineTablesGrid');
-  const btnRefreshTables = document.getElementById('btnRefreshTables');
   const occupiedTablesCount = document.getElementById('occupiedTablesCount');
-  const topActiveTableLabel = document.getElementById('topActiveTableLabel');
-  const btnIncreaseTable = document.getElementById('btnIncreaseTable');
-  const btnDecreaseTable = document.getElementById('btnDecreaseTable');
-  const currentTableCountBadge = document.getElementById('currentTableCountBadge');
-  const headerCapacityPill = document.getElementById('headerCapacityPill');
-  const takeawaysGrid = document.getElementById('takeawaysGrid');
-  const takeawaysCount = document.getElementById('takeawaysCount');
-  const topTakeawaysCount = document.getElementById('topTakeawaysCount');
   const tablesGridOccupiedCount = document.getElementById('tablesGridOccupiedCount');
-
-  // Daily Expenses DOM
-  const btnOpenExpensesModal = document.getElementById('btnOpenExpensesModal');
-  const expensesModal = document.getElementById('expensesModal');
-  const btnCloseExpensesModal = document.getElementById('btnCloseExpensesModal');
-  const btnCloseExpensesModalBtn = document.getElementById('btnCloseExpensesModalBtn');
-  const topTodayExpensesPill = document.getElementById('topTodayExpensesPill');
-  const expSummaryGross = document.getElementById('expSummaryGross');
-  const expSummaryTotal = document.getElementById('expSummaryTotal');
-  const expSummaryNet = document.getElementById('expSummaryNet');
-  const expTitleInput = document.getElementById('expTitleInput');
-  const expAmountInput = document.getElementById('expAmountInput');
-  const expCategorySelect = document.getElementById('expCategorySelect');
-  const expDeductionSelect = document.getElementById('expDeductionSelect');
-  const expNotesInput = document.getElementById('expNotesInput');
-  const btnSaveExpense = document.getElementById('btnSaveExpense');
-  const expensesListContainer = document.getElementById('expensesListContainer');
-  const expensesLogCount = document.getElementById('expensesLogCount');
-  const btnFilterExpToday = document.getElementById('btnFilterExpToday');
-  const btnFilterExpYesterday = document.getElementById('btnFilterExpYesterday');
-  const btnFilterExpAll = document.getElementById('btnFilterExpAll');
-
-  // Catalog DOM
-  const itemsGrid = document.getElementById('itemsGrid');
-  const catalogStats = document.getElementById('catalogStats');
-  const searchInput = document.getElementById('searchInput');
-  const categoryFilterBar = document.getElementById('categoryFilterBar');
-
-  // Fast Table Switcher Strip DOM (Always Visible)
-  const mobileTableStripBar = document.getElementById('mobileTableStripBar');
-  const mobileTableStrip = document.getElementById('mobileTableStrip');
-  const stripActiveTableLabel = document.getElementById('stripActiveTableLabel');
-  const stripActiveTableBillBadge = document.getElementById('stripActiveTableBillBadge');
-
-  // ⚡ 1-Tap Speed-Bar DOM
-  const speedBarContainer = document.getElementById('speedBarContainer');
-  const speedBarScroll = document.getElementById('speedBarScroll');
-
-  // 📊 Table-Wise Order Tracking & Performance Modal DOM
-  const btnOpenTableTrackingModal = document.getElementById('btnOpenTableTrackingModal');
-  const tableTrackingModal = document.getElementById('tableTrackingModal');
-  const btnCloseTableTrackingModal = document.getElementById('btnCloseTableTrackingModal');
-  const btnCloseTableTrackingModalBtn = document.getElementById('btnCloseTableTrackingModalBtn');
-  const btnTblTrackToday = document.getElementById('btnTblTrackToday');
-  const btnTblTrackYesterday = document.getElementById('btnTblTrackYesterday');
-  const btnTblTrackMonth = document.getElementById('btnTblTrackMonth');
-  const inputTblTrackDate = document.getElementById('inputTblTrackDate');
-  const tblTrackGrandRevenue = document.getElementById('tblTrackGrandRevenue');
-  const tblTrackGrandOrders = document.getElementById('tblTrackGrandOrders');
-  const tblTrackActiveTablesNow = document.getElementById('tblTrackActiveTablesNow');
-  const tblTrackTableBody = document.getElementById('tblTrackTableBody');
-
-  // Cart DOM
-  const tablePillsRow = document.getElementById('tablePillsRow');
-  const selectedTableDisplay = document.getElementById('selectedTableDisplay');
-  const guestNameInput = document.getElementById('guestNameInput');
+  const takeawaysCount = document.getElementById('takeawaysCount');
+  const nineTablesGrid = document.getElementById('nineTablesGrid');
+  const takeawaysGrid = document.getElementById('takeawaysGrid');
+  const btnRefreshTables = document.getElementById('btnRefreshTables');
+  const posCartPanel = document.getElementById('posCartPanel');
+  const cartActiveTableTag = document.getElementById('cartActiveTableTag');
   const cartItemsList = document.getElementById('cartItemsList');
-  const cartCount = document.getElementById('cartCount');
   const subtotalDisplay = document.getElementById('subtotalDisplay');
   const finalTotalDisplay = document.getElementById('finalTotalDisplay');
+  const cartCount = document.getElementById('cartCount');
+  const guestNameInput = document.getElementById('guestNameInput');
   const btnClearCart = document.getElementById('btnClearCart');
   const btnConfirmPaymentAndOrder = document.getElementById('btnConfirmPaymentAndOrder');
   const btnFireKotOnly = document.getElementById('btnFireKotOnly');
-  const cartActiveTableNotice = document.getElementById('cartActiveTableNotice');
-  const activeTableNoticeTitle = document.getElementById('activeTableNoticeTitle');
-  const activeTableNoticeBill = document.getElementById('activeTableNoticeBill');
-  const activeTableNoticeText = document.getElementById('activeTableNoticeText');
+  const mobileFloatingCart = document.getElementById('mobileFloatingCart');
+  const mobileCartTableLabel = document.getElementById('mobileCartTableLabel');
+  const mobileCartCount = document.getElementById('mobileCartCount');
+  const mobileCartTotal = document.getElementById('mobileCartTotal');
+  const btnOpenMobileCart = document.getElementById('btnOpenMobileCart');
+  const btnMobileReviewAction = document.getElementById('btnMobileReviewAction');
+  const btnCloseMobileCart = document.getElementById('btnCloseMobileCart');
+  const cartMobileBackdrop = document.getElementById('cartMobileBackdrop');
+  const speedBarScroll = document.getElementById('speedBarScroll');
 
-  // Table Detail Modal
+  // Modals
   const tableDetailModal = document.getElementById('tableDetailModal');
+  const btnCloseTableModal = document.getElementById('btnCloseTableModal');
   const modalTableTitle = document.getElementById('modalTableTitle');
   const modalTableOrderNum = document.getElementById('modalTableOrderNum');
   const modalTableItemsTbody = document.getElementById('modalTableItemsTbody');
   const modalTableTotalAmount = document.getElementById('modalTableTotalAmount');
-  const btnCloseTableModal = document.getElementById('btnCloseTableModal');
+  const btnModalPrintBill = document.getElementById('btnModalPrintBill');
   const btnModalAddMoreItems = document.getElementById('btnModalAddMoreItems');
   const btnModalSettlePayment = document.getElementById('btnModalSettlePayment');
-  const modalPaymentTicks = document.getElementById('modalPaymentTicks');
-
-  // Shake Variant Modal
-  const shakeVariantModal = document.getElementById('shakeVariantModal');
-  const variantsGrid = document.getElementById('variantsGrid');
-  const variantModalTitle = document.getElementById('variantModalTitle');
-  const btnCloseVariantModal = document.getElementById('btnCloseVariantModal');
-  const btnCancelVariant = document.getElementById('btnCancelVariant');
-  const btnConfirmVariant = document.getElementById('btnConfirmVariant');
-  let activeShakeItem = null;
-  let activeShakeVariant = null;
-
-  // Edit Price / Cost Modal DOM
-  const editPriceModal = document.getElementById('editPriceModal');
-  const editPriceModalTitle = document.getElementById('editPriceModalTitle');
-  const editPriceModalSubtitle = document.getElementById('editPriceModalSubtitle');
-  const standardPriceInputGroup = document.getElementById('standardPriceInputGroup');
-  const inputNewSellingPrice = document.getElementById('inputNewSellingPrice');
-  const inputNewBaseCost = document.getElementById('inputNewBaseCost');
-  const marginDisplay = document.getElementById('marginDisplay');
-  const variantPriceInputsGroup = document.getElementById('variantPriceInputsGroup');
-  const inputVarMilkPrice = document.getElementById('inputVarMilkPrice');
-  const inputVarMilkCost = document.getElementById('inputVarMilkCost');
-  const inputVarBlendPrice = document.getElementById('inputVarBlendPrice');
-  const inputVarBlendCost = document.getElementById('inputVarBlendCost');
-  const inputVarThickPrice = document.getElementById('inputVarThickPrice');
-  const inputVarThickCost = document.getElementById('inputVarThickCost');
-  const btnCloseEditPriceModal = document.getElementById('btnCloseEditPriceModal');
-  const btnCancelEditPrice = document.getElementById('btnCancelEditPrice');
-  const btnSaveUpdatedPrice = document.getElementById('btnSaveUpdatedPrice');
-  const btnModalPrintBill = document.getElementById('btnModalPrintBill');
+  const btnAdvanceStatusAction = document.getElementById('btnAdvanceStatusAction');
+  const advanceActionIcon = document.getElementById('advanceActionIcon');
+  const advanceActionLabel = document.getElementById('advanceActionLabel');
+  const modalStatusBadge = document.getElementById('modalStatusBadge');
+  const stepBoxOrdered = document.getElementById('stepBoxOrdered');
+  const stepBoxReady = document.getElementById('stepBoxReady');
+  const stepBoxServed = document.getElementById('stepBoxServed');
+  const stepBoxPaid = document.getElementById('stepBoxPaid');
   const printableBillReceipt = document.getElementById('printableBillReceipt');
-  let itemToEdit = null;
 
-  function updateMarginDisplay() {
-    if (!inputNewSellingPrice || !inputNewBaseCost || !marginDisplay) return;
-    const sell = Number(inputNewSellingPrice.value) || 0;
-    const cost = Number(inputNewBaseCost.value) || 0;
-    const profit = sell - cost;
-    const pct = sell > 0 ? Math.round((profit / sell) * 100) : 0;
-    marginDisplay.textContent = `₹${profit} (${pct}% profit)`;
-    marginDisplay.style.color = profit >= 0 ? '#52B788' : '#E63946';
-  }
+  const shakeVariantModal = document.getElementById('shakeVariantModal');
+  const btnCloseVariantModal = document.getElementById('btnCloseVariantModal');
+  const btnCancelVariantModal = document.getElementById('btnCancelVariantModal');
+  const shakeVariantsList = document.getElementById('shakeVariantsList');
+  const shakeModalTitle = document.getElementById('shakeModalTitle');
+  let pendingShakeItem = null;
 
-  if (inputNewSellingPrice) inputNewSellingPrice.addEventListener('input', updateMarginDisplay);
-  if (inputNewBaseCost) inputNewBaseCost.addEventListener('input', updateMarginDisplay);
-
-  // --- Fetch Master Menu Catalog ---
+  // ==========================================================================
+  // 4. API Calls: Menu & Tables Overview
+  // ==========================================================================
   async function fetchMenuCatalog() {
     try {
-      catalogStats.textContent = 'Fetching Anchor Cafe offerings...';
-      const response = await fetch('/api/menu');
-      const data = await response.json();
-
-      if (data.success && data.items) {
-        menuCatalog = data.items;
-        catalogStats.textContent = `${menuCatalog.length} coastal offerings loaded`;
+      const res = await fetch('/api/menu');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.items)) {
+        menuCatalog = data.items.filter(i => i.isAvailable !== false);
         renderItems();
-      } else {
-        catalogStats.textContent = 'Failed to load menu';
       }
-    } catch (err) {
-      console.error('Menu load error:', err);
-      catalogStats.textContent = 'Connecting to local database...';
+    } catch (e) {
+      console.error('Menu load error:', e);
     }
   }
 
-  // --- Fetch Tables Live Status & Takeaways (With State Fingerprinting to prevent redundant DOM churn) ---
-  let lastTablesFingerprint = '';
-  function computeTablesFingerprint(tables, takeaways, total) {
-    return `${total}_${(takeaways || []).length}_` + (tables || []).map(t => 
-      `${t.tableNumber}:${t.isOccupied ? 1 : 0}:${t.order?._id || ''}:${t.order?.finalTotalAmount || 0}:${t.order?.items?.length || 0}`
-    ).join(';');
+  function computeFingerprint(tables, takeaways, total) {
+    const tStr = (tables || []).map(t => `${t.tableNumber}:${t.isOccupied ? (t.order?.orderNumber || 'Y') + (t.order?.orderStatus || '') : 'N'}`).join('|');
+    const tkStr = (takeaways || []).map(k => `${k.orderNumber}:${k.orderStatus}`).join('|');
+    return `${total}-${tStr}-${tkStr}`;
   }
 
   async function fetchTablesOverview(forceRender = false) {
@@ -250,99 +160,35 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/orders/tables');
       const data = await res.json();
       if (data.success) {
+        currentTotalTables = data.totalTables || 9;
         tablesData = data.tables || [];
         activeTakeawaysData = data.activeTakeaways || [];
-        currentTotalTables = data.totalTables || tablesData.length || 9;
 
-        if (currentTableCountBadge) currentTableCountBadge.textContent = `${currentTotalTables} Tables`;
-        if (headerCapacityPill) headerCapacityPill.textContent = `${currentTotalTables} Tables Active`;
-
-        const newFingerprint = computeTablesFingerprint(tablesData, activeTakeawaysData, currentTotalTables);
-        if (forceRender || newFingerprint !== lastTablesFingerprint) {
-          lastTablesFingerprint = newFingerprint;
+        const fp = computeFingerprint(tablesData, activeTakeawaysData, currentTotalTables);
+        if (forceRender || fp !== lastTablesFingerprint) {
+          lastTablesFingerprint = fp;
           renderTablePills();
-          renderMobileTableStrip();
-          if (typeof mobileTableBottomSheet !== 'undefined' && mobileTableBottomSheet && mobileTableBottomSheet.classList.contains('open')) {
-            renderTableBottomSheet();
-          }
           renderTablesFloorGrid();
           renderTakeawaysFloorGrid();
-          updateActiveTableNotice();
           renderCart();
         }
       }
-    } catch (err) {
-      console.error('Tables fetch error:', err);
+    } catch (e) {
+      console.error('Tables overview error:', e);
     }
   }
 
-  // --- Render Dynamic Table Pills on Cart Side ---
+  // ==========================================================================
+  // 5. Fast In-Place Table Switcher (Zero Blinking)
+  // ==========================================================================
   function renderTablePills() {
-    tablePillsRow.innerHTML = '';
-    const fragment = document.createDocumentFragment();
-    for (let i = 1; i <= currentTotalTables; i++) {
-      const tName = `Table ${i}`;
-      const btn = document.createElement('button');
-      btn.className = `table-pill ${selectedTable === tName ? 'active' : ''}`;
-      btn.setAttribute('data-table', tName);
-      btn.textContent = `T${i}`;
+    if (!tablePillsRow) return;
 
-      const matched = tablesData.find(t => t.tableNumber === tName);
-      if (matched && matched.isOccupied) {
-        btn.classList.add('occupied');
-      }
-      fragment.appendChild(btn);
-    }
-
-    // Append Takeaway pill
-    const takeawayBtn = document.createElement('button');
-    takeawayBtn.className = `table-pill ${selectedTable === 'Takeaway' ? 'active' : ''}`;
-    takeawayBtn.setAttribute('data-table', 'Takeaway');
-    takeawayBtn.textContent = '🛍️ Takeaway';
-    if (activeTakeawaysData.length > 0) {
-      takeawayBtn.classList.add('occupied');
-    }
-    fragment.appendChild(takeawayBtn);
-    tablePillsRow.appendChild(fragment);
-  }
-
-  // Delegated listener for mobile table strip (attached once)
-  if (mobileTableStrip) {
-    mobileTableStrip.addEventListener('click', (e) => {
-      const btn = e.target.closest('.m-table-btn');
-      if (btn) {
-        const tName = btn.getAttribute('data-table');
-        if (tName) {
-          const wasSelected = selectedTable === tName;
-          selectTable(tName);
-          const matched = tablesData.find(t => t.tableNumber === tName);
-          if (wasSelected && matched && matched.isOccupied && matched.order) {
-            openTableDetailModal(tName, matched.order);
-          }
-        }
-      }
-    });
-  }
-
-  const btnStripCheckStatus = document.getElementById('btnStripCheckStatus');
-  if (btnStripCheckStatus) {
-    btnStripCheckStatus.addEventListener('click', () => {
-      const matched = tablesData.find(t => t.tableNumber === selectedTable);
-      if (matched && matched.isOccupied && matched.order) {
-        openTableDetailModal(selectedTable, matched.order);
-      }
-    });
-  }
-
-  // --- Render Mobile & Desktop Fast Table Switcher Strip (In-Place Updates - Zero Blinking) ---
-  function renderMobileTableStrip() {
-    if (!mobileTableStrip) return;
-
-    const existingBtns = mobileTableStrip.querySelectorAll('.m-table-btn');
-    const expectedCount = currentTotalTables + 1; // tables + takeaway
+    const existingBtns = tablePillsRow.querySelectorAll('.table-pill');
+    const expectedCount = currentTotalTables + 1; // 1 to N + Parcel
 
     if (existingBtns.length === expectedCount) {
-      // In-Place Update: Does not tear down DOM, ZERO BLINKING!
+      // In-place update: does not tear down DOM nodes
       for (let i = 1; i <= currentTotalTables; i++) {
         const tName = `Table ${i}`;
         const btn = existingBtns[i - 1];
@@ -350,933 +196,166 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSel = selectedTable === tName;
         const matched = tablesData.find(t => t.tableNumber === tName);
         const isOcc = matched && matched.isOccupied;
-        const draftCart = tableCarts[tName] || [];
-        const hasDraft = draftCart.length > 0;
 
         btn.classList.toggle('active', isSel);
         btn.classList.toggle('occupied', !!isOcc);
-
-        let inner = `<span>T${i}</span>`;
-        if (isOcc && matched.order) {
-          inner += `<span class="tbl-badge">₹${matched.order.finalTotalAmount}</span>`;
-        } else if (hasDraft) {
-          let draftQty = 0;
-          draftCart.forEach(d => { draftQty += d.quantity; });
-          inner += `<span class="tbl-draft-dot" title="${draftQty} items added"></span>`;
-        }
-        if (btn.innerHTML !== inner) btn.innerHTML = inner;
       }
 
-      // Update takeaway button
-      const takeawayBtn = existingBtns[currentTotalTables];
-      if (takeawayBtn) {
-        const isTkSel = selectedTable === 'Takeaway';
-        const tkCount = activeTakeawaysData.length;
-        takeawayBtn.classList.toggle('active', isTkSel);
-        takeawayBtn.classList.toggle('occupied', tkCount > 0);
-        let tkInner = `<span>🛍️ Takeaway</span>`;
-        if (tkCount > 0) {
-          tkInner += `<span class="tbl-badge">${tkCount}</span>`;
-        } else if ((tableCarts['Takeaway'] || []).length > 0) {
-          tkInner += `<span class="tbl-draft-dot"></span>`;
-        }
-        if (takeawayBtn.innerHTML !== tkInner) takeawayBtn.innerHTML = tkInner;
+      // Update parcel button
+      const parcelBtn = existingBtns[currentTotalTables];
+      if (parcelBtn) {
+        const isSel = selectedTable === 'Takeaway';
+        const isOcc = activeTakeawaysData.length > 0;
+        parcelBtn.classList.toggle('active', isSel);
+        parcelBtn.classList.toggle('occupied', isOcc);
       }
     } else {
-      // Initial assembly
+      // Rebuild once if total table count changed
+      tablePillsRow.innerHTML = '';
       const fragment = document.createDocumentFragment();
+
       for (let i = 1; i <= currentTotalTables; i++) {
         const tName = `Table ${i}`;
         const btn = document.createElement('button');
-        btn.className = `m-table-btn ${selectedTable === tName ? 'active' : ''}`;
+        btn.className = `table-pill ${selectedTable === tName ? 'active' : ''}`;
         btn.setAttribute('data-table', tName);
-
+        btn.textContent = `T${i}`;
         const matched = tablesData.find(t => t.tableNumber === tName);
-        const isOcc = matched && matched.isOccupied;
-        const draftCart = tableCarts[tName] || [];
-        const hasDraft = draftCart.length > 0;
-
-        if (isOcc) btn.classList.add('occupied');
-
-        let inner = `<span>T${i}</span>`;
-        if (isOcc && matched.order) {
-          inner += `<span class="tbl-badge">₹${matched.order.finalTotalAmount}</span>`;
-        } else if (hasDraft) {
-          let draftQty = 0;
-          draftCart.forEach(d => { draftQty += d.quantity; });
-          inner += `<span class="tbl-draft-dot" title="${draftQty} items added"></span>`;
-        }
-
-        btn.innerHTML = inner;
+        if (matched && matched.isOccupied) btn.classList.add('occupied');
         fragment.appendChild(btn);
       }
 
-      const takeawayBtn = document.createElement('button');
-      takeawayBtn.className = `m-table-btn ${selectedTable === 'Takeaway' ? 'active' : ''}`;
-      takeawayBtn.setAttribute('data-table', 'Takeaway');
-      const tkCount = activeTakeawaysData.length;
-      let tkInner = `<span>🛍️ Takeaway</span>`;
-      if (tkCount > 0) {
-        takeawayBtn.classList.add('occupied');
-        tkInner += `<span class="tbl-badge">${tkCount}</span>`;
-      } else if ((tableCarts['Takeaway'] || []).length > 0) {
-        tkInner += `<span class="tbl-draft-dot"></span>`;
-      }
-      takeawayBtn.innerHTML = tkInner;
-      fragment.appendChild(takeawayBtn);
+      const parcelBtn = document.createElement('button');
+      parcelBtn.className = `table-pill ${selectedTable === 'Takeaway' ? 'active' : ''}`;
+      parcelBtn.setAttribute('data-table', 'Takeaway');
+      parcelBtn.textContent = '🛍️ Parcel';
+      if (activeTakeawaysData.length > 0) parcelBtn.classList.add('occupied');
+      fragment.appendChild(parcelBtn);
 
-      mobileTableStrip.innerHTML = '';
-      mobileTableStrip.appendChild(fragment);
+      tablePillsRow.appendChild(fragment);
     }
 
-    // Update active table label & bill badge on strip
-    if (stripActiveTableLabel) {
-      stripActiveTableLabel.textContent = selectedTable;
-    }
+    // Update Top Indicators
     const matched = tablesData.find(t => t.tableNumber === selectedTable);
-    const draft = tableCarts[selectedTable] || [];
+    const activeOrder = getActiveOrderForSelectedTable();
+    const draftCart = getTableCart(selectedTable);
 
-    if (stripActiveTableBillBadge) {
-      if (matched && matched.isOccupied && matched.order) {
-        stripActiveTableBillBadge.textContent = `Running: ₹${matched.order.finalTotalAmount}`;
-        stripActiveTableBillBadge.style.display = 'inline-block';
-        stripActiveTableBillBadge.style.background = 'rgba(230, 57, 70, 0.25)';
-        stripActiveTableBillBadge.style.color = '#FFB4A2';
-      } else if (draft.length > 0) {
-        let draftSub = 0;
-        draft.forEach(d => { draftSub += d.unitPrice * d.quantity; });
-        stripActiveTableBillBadge.textContent = `Draft: ₹${draftSub}`;
-        stripActiveTableBillBadge.style.display = 'inline-block';
-        stripActiveTableBillBadge.style.background = 'rgba(82, 183, 136, 0.25)';
-        stripActiveTableBillBadge.style.color = '#52B788';
+    if (topActiveTableLabel) topActiveTableLabel.textContent = selectedTable;
+    if (cartActiveTableTag) cartActiveTableTag.textContent = selectedTable;
+
+    if (topActiveTableBill) {
+      if (activeOrder) {
+        topActiveTableBill.textContent = `Running: ₹${activeOrder.finalTotalAmount}`;
+        topActiveTableBill.style.display = 'inline-block';
+        topActiveTableBill.style.background = 'rgba(230, 57, 70, 0.25)';
+        topActiveTableBill.style.color = '#FFB4A2';
+      } else if (draftCart.length > 0) {
+        let draftSum = 0;
+        draftCart.forEach(d => { draftSum += d.unitPrice * d.quantity; });
+        topActiveTableBill.textContent = `Draft: ₹${draftSum}`;
+        topActiveTableBill.style.display = 'inline-block';
+        topActiveTableBill.style.background = 'rgba(82, 183, 136, 0.25)';
+        topActiveTableBill.style.color = '#52B788';
       } else {
-        stripActiveTableBillBadge.style.display = 'none';
+        topActiveTableBill.style.display = 'none';
       }
     }
 
-    const btnStripCheckStatus = document.getElementById('btnStripCheckStatus');
-    if (btnStripCheckStatus) {
-      if (matched && matched.isOccupied && matched.order) {
-        const st = matched.order.orderStatus || 'PENDING';
+    if (btnTopCheckStatus) {
+      if (activeOrder) {
+        const st = activeOrder.orderStatus || 'PENDING';
         let stIcon = '🟡';
-        let stLabel = '1. Ordered';
-        if (st === 'READY_FOR_PICKUP') {
-          stIcon = '🔔';
-          stLabel = '2. Ready';
-        } else if (st === 'SERVED') {
-          stIcon = '🍽️';
-          stLabel = '3. Served';
-        }
-        btnStripCheckStatus.innerHTML = `📋 ${stIcon} ${stLabel}`;
-        btnStripCheckStatus.style.display = 'inline-block';
+        let stText = '1. Ordered';
+        if (st === 'READY_FOR_PICKUP') { stIcon = '🔔'; stText = '2. Ready'; }
+        else if (st === 'SERVED') { stIcon = '🍽️'; stText = '3. Served'; }
+        btnTopCheckStatus.innerHTML = `📋 ${stIcon} ${stText}`;
+        btnTopCheckStatus.style.display = 'inline-block';
       } else {
-        btnStripCheckStatus.style.display = 'none';
+        btnTopCheckStatus.style.display = 'none';
       }
     }
   }
 
+  function selectTable(tableName) {
+    const wasAlreadySelected = selectedTable === tableName;
+    selectedTable = tableName;
+    renderTablePills();
+    renderCart();
 
-  // --- Render Tables Floor Layout ---
-  function renderTablesFloorGrid() {
-    nineTablesGrid.innerHTML = '';
-    let occupiedCount = 0;
-
-    tablesData.forEach(tbl => {
-      if (tbl.isOccupied) occupiedCount++;
-
-      const card = document.createElement('div');
-      card.className = `table-floor-card ${tbl.isOccupied ? 'occupied' : 'vacant'}`;
-
-      let itemsSummaryHtml = 'Ready for dining guests';
-      let billHtml = '₹0';
-
-      if (tbl.isOccupied && tbl.order) {
-        billHtml = `₹${tbl.order.finalTotalAmount}`;
-        const itemNames = tbl.order.items.map(it => `${it.quantity}x ${it.title}`).join(', ');
-        itemsSummaryHtml = `${tbl.order.totalItemCount} items: ${itemNames}`;
-      }
-
-      card.innerHTML = `
-        <div class="table-card-top">
-          <span class="table-card-name">${tbl.tableNumber}</span>
-          <span class="table-status-indicator ${tbl.isOccupied ? 'occupied' : 'vacant'}">
-            ${tbl.isOccupied ? '🔴 Active Bill' : '🟢 Available'}
-          </span>
-        </div>
-        <div class="table-card-body">
-          <div class="table-bill-amount">${billHtml}</div>
-          <div class="table-items-preview">${itemsSummaryHtml}</div>
-        </div>
-        <div style="font-size: 0.75rem; color: var(--color-gold); font-weight: 600; display: flex; justify-content: space-between;">
-          <span>${tbl.isOccupied ? `Order: ${tbl.order.orderNumber}` : 'Tap to start order'}</span>
-          <span>&rarr;</span>
-        </div>
-      `;
-
-      card.addEventListener('click', () => {
-        handleTableClick(tbl);
-      });
-
-      nineTablesGrid.appendChild(card);
-    });
-
-    if (occupiedTablesCount) occupiedTablesCount.textContent = occupiedCount;
-    if (tablesGridOccupiedCount) tablesGridOccupiedCount.textContent = occupiedCount;
-  }
-
-  // --- Render Active Takeaway Orders Section ---
-  function renderTakeawaysFloorGrid() {
-    if (!takeawaysGrid) return;
-    takeawaysGrid.innerHTML = '';
-    const count = activeTakeawaysData.length;
-    if (takeawaysCount) takeawaysCount.textContent = count;
-    if (topTakeawaysCount) topTakeawaysCount.textContent = count;
-
-    if (count === 0) {
-      takeawaysGrid.innerHTML = `
-        <div style="grid-column: 1 / -1; padding: 1.25rem; text-align: center; color: var(--color-foam); opacity: 0.75; font-size: 0.85rem; border: 1px dashed rgba(72, 202, 228, 0.3); border-radius: var(--radius-sm);">
-          🛍️ No active takeaway orders right now. Orders placed with "Takeaway" will appear here for packing &amp; handover.
-        </div>
-      `;
-      return;
-    }
-
-    activeTakeawaysData.forEach(order => {
-      const card = document.createElement('div');
-      card.className = 'table-floor-card occupied';
-      card.style.borderLeft = '4px solid #48CAE4';
-      card.style.background = 'rgba(6, 24, 44, 0.85)';
-
-      const itemNames = order.items.map(it => `${it.quantity}x ${it.title}`).join(', ');
-      const guestName = order.locationDetails?.customerName || 'Takeaway Guest';
-
-      card.innerHTML = `
-        <div class="table-card-top">
-          <span class="table-card-name" style="color: #48CAE4;">🛍️ ${order.orderNumber}</span>
-          <span class="table-status-indicator occupied">
-            ${order.paymentStatus === 'PAID' ? '🟢 Paid / Ready' : '🔴 Unpaid Parcel'}
-          </span>
-        </div>
-        <div class="table-card-body">
-          <div style="font-weight: 700; color: var(--color-sand); font-size: 0.9rem; margin-bottom: 0.25rem;">
-            👤 ${guestName}
-          </div>
-          <div class="table-bill-amount">₹${order.finalTotalAmount}</div>
-          <div class="table-items-preview">${order.totalItemCount} items: ${itemNames}</div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.4rem;">
-          <small style="color: var(--color-sand-muted); font-size: 0.7rem;">Placed: ${new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
-          <span style="color: var(--color-gold); font-size: 0.75rem; font-weight: 700;">View &amp; Settle &rarr;</span>
-        </div>
-      `;
-
-      card.addEventListener('click', () => {
-        openTableDetailModal(`Takeaway: ${order.orderNumber}`, order);
-      });
-
-      takeawaysGrid.appendChild(card);
-    });
-  }
-
-  // Update pills on the cart side
-  function updateTablePillsOccupancy() {
-    document.querySelectorAll('.table-pill').forEach(btn => {
-      const tName = btn.getAttribute('data-table');
-      const matched = tablesData.find(t => t.tableNumber === tName);
-      if (matched && matched.isOccupied) {
-        btn.classList.add('occupied');
-      } else {
-        btn.classList.remove('occupied');
-      }
-    });
-  }
-
-  // --- Handle Click on a Table Card ---
-  function handleTableClick(tbl) {
-    selectTable(tbl.tableNumber);
-
-    if (tbl.isOccupied && tbl.order) {
-      // Open Table Running Bill Modal
-      openTableDetailModal(tbl.tableNumber, tbl.order);
-    } else {
-      // Switch back to catalog view to add items
-      switchView('catalog');
-      showToast(`Selected ${tbl.tableNumber} for new order`, 'info');
+    // If tapping an active table that is already selected, open the status modal immediately
+    const activeOrder = getActiveOrderForSelectedTable(tableName);
+    if (wasAlreadySelected && activeOrder) {
+      openTableDetailModal(tableName, activeOrder);
     }
   }
 
-  // Live Dining Lifecycle Status Manager for Tables
-  function updateModalStatusView(order) {
-    if (!order) return;
-    const status = order.orderStatus || 'PENDING';
-    const isPaid = order.paymentStatus === 'PAID';
-
-    const modalStatusBadge = document.getElementById('modalStatusBadge');
-    const stepBoxOrdered = document.getElementById('stepBoxOrdered');
-    const stepBoxReady = document.getElementById('stepBoxReady');
-    const stepBoxServed = document.getElementById('stepBoxServed');
-    const stepBoxPaid = document.getElementById('stepBoxPaid');
-    const btnAdvanceStatusAction = document.getElementById('btnAdvanceStatusAction');
-    const advanceActionIcon = document.getElementById('advanceActionIcon');
-    const advanceActionLabel = document.getElementById('advanceActionLabel');
-
-    // Reset step styles
-    [stepBoxOrdered, stepBoxReady, stepBoxServed, stepBoxPaid].forEach(box => {
-      if (box) {
-        box.className = 'step-box';
-        box.style.borderColor = 'rgba(255, 255, 255, 0.12)';
-        box.style.background = 'rgba(255, 255, 255, 0.04)';
-        box.style.color = 'var(--color-foam)';
-      }
-    });
-
-    if (isPaid) {
-      if (modalStatusBadge) {
-        modalStatusBadge.textContent = '✅ 4. PAID & FREE';
-        modalStatusBadge.style.color = 'var(--color-gold)';
-        modalStatusBadge.style.borderColor = 'var(--color-gold)';
-        modalStatusBadge.style.background = 'rgba(201, 168, 106, 0.25)';
-      }
-      if (stepBoxPaid) {
-        stepBoxPaid.className = 'step-box active-paid';
-      }
-      if (btnAdvanceStatusAction) {
-        btnAdvanceStatusAction.style.background = '#52B788';
-        btnAdvanceStatusAction.style.color = '#06182C';
-        if (advanceActionIcon) advanceActionIcon.textContent = '✅';
-        if (advanceActionLabel) advanceActionLabel.textContent = 'Table Paid & Completed';
-        btnAdvanceStatusAction.disabled = true;
-      }
-    } else if (status === 'SERVED') {
-      if (modalStatusBadge) {
-        modalStatusBadge.textContent = '🍽️ 3. SERVED TO TABLE';
-        modalStatusBadge.style.color = '#52B788';
-        modalStatusBadge.style.borderColor = '#52B788';
-        modalStatusBadge.style.background = 'rgba(82, 183, 136, 0.25)';
-      }
-      if (stepBoxServed) {
-        stepBoxServed.className = 'step-box active-served';
-      }
-      if (btnAdvanceStatusAction) {
-        btnAdvanceStatusAction.style.background = 'linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%)';
-        btnAdvanceStatusAction.style.color = '#06182C';
-        if (advanceActionIcon) advanceActionIcon.textContent = '💳';
-        if (advanceActionLabel) advanceActionLabel.textContent = `Collect Payment & Settle Table (₹${order.finalTotalAmount})`;
-        btnAdvanceStatusAction.disabled = false;
-        btnAdvanceStatusAction.setAttribute('data-target-action', 'settle');
-      }
-    } else if (status === 'READY_FOR_PICKUP') {
-      if (modalStatusBadge) {
-        modalStatusBadge.textContent = '🔔 2. FOOD READY';
-        modalStatusBadge.style.color = '#48CAE4';
-        modalStatusBadge.style.borderColor = '#48CAE4';
-        modalStatusBadge.style.background = 'rgba(72, 202, 228, 0.25)';
-      }
-      if (stepBoxReady) {
-        stepBoxReady.className = 'step-box active-ready';
-      }
-      if (btnAdvanceStatusAction) {
-        btnAdvanceStatusAction.style.background = '#52B788';
-        btnAdvanceStatusAction.style.color = '#06182C';
-        if (advanceActionIcon) advanceActionIcon.textContent = '🍽️';
-        if (advanceActionLabel) advanceActionLabel.textContent = 'Confirm Food Served to Table';
-        btnAdvanceStatusAction.disabled = false;
-        btnAdvanceStatusAction.setAttribute('data-target-action', 'SERVED');
-      }
-    } else {
-      // PENDING, ACCEPTED, or KITCHEN_PREPARING
-      if (modalStatusBadge) {
-        modalStatusBadge.textContent = '🟡 1. ORDERED (COOKING)';
-        modalStatusBadge.style.color = '#E76F51';
-        modalStatusBadge.style.borderColor = '#E76F51';
-        modalStatusBadge.style.background = 'rgba(231, 111, 81, 0.25)';
-      }
-      if (stepBoxOrdered) {
-        stepBoxOrdered.className = 'step-box active-pending';
-      }
-      if (btnAdvanceStatusAction) {
-        btnAdvanceStatusAction.style.background = '#48CAE4';
-        btnAdvanceStatusAction.style.color = '#06182C';
-        if (advanceActionIcon) advanceActionIcon.textContent = '🔔';
-        if (advanceActionLabel) advanceActionLabel.textContent = 'Confirm Food is Ready';
-        btnAdvanceStatusAction.disabled = false;
-        btnAdvanceStatusAction.setAttribute('data-target-action', 'READY_FOR_PICKUP');
-      }
-    }
-  }
-
-  // Action function to advance status
-  async function advanceOrderStatus(orderId, nextStatus) {
-    try {
-      const res = await fetch(`/api/orders/${orderId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus })
-      });
-      const data = await res.json();
-      if (data.success && data.order) {
-        if (modalActiveOrder && (String(modalActiveOrder._id) === String(orderId) || modalActiveOrder.orderNumber === orderId)) {
-          modalActiveOrder = data.order;
-          updateModalStatusView(data.order);
-        }
-        showToast(`Table status confirmed: ${nextStatus}!`, 'success');
-        if (soundEngine && soundEngine.playChime) soundEngine.playChime();
-        fetchTablesOverview(true);
-      } else {
-        showToast(data.message || 'Status update failed', 'error');
-      }
-    } catch (err) {
-      console.error('Status transition error:', err);
-      showToast('Could not update status', 'error');
-    }
-  }
-
-  // Open Live Table Detail Modal
-  function openTableDetailModal(tableName, order) {
-    modalActiveOrder = order;
-    modalTableTitle.textContent = `${tableName} Active Order`;
-    modalTableOrderNum.textContent = `Order Ticket: ${order.orderNumber} • Placed ${new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    modalTableTotalAmount.textContent = `₹${order.finalTotalAmount}`;
-
-    updateModalStatusView(order);
-
-    modalTableItemsTbody.innerHTML = '';
-    order.items.forEach(it => {
-      const tr = document.createElement('tr');
-      tr.style.borderBottom = '1px dashed rgba(201, 168, 106, 0.15)';
-      tr.innerHTML = `
-        <td style="padding: 0.5rem 0; font-weight: 700; color: var(--color-gold);">${it.quantity}x</td>
-        <td style="padding: 0.5rem 0;">
-          <strong>${it.title}</strong>
-          ${it.variant ? `<div style="font-size: 0.75rem; color: var(--color-gold);">${it.variant}</div>` : ''}
-        </td>
-        <td style="padding: 0.5rem 0; text-align: right; color: var(--color-foam); opacity: 0.85;">₹${it.unitPrice}</td>
-        <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: var(--color-gold);">₹${it.subtotal}</td>
-      `;
-      modalTableItemsTbody.appendChild(tr);
-    });
-
-    tableDetailModal.classList.add('open');
-  }
-
-  const btnAdvanceStatusAction = document.getElementById('btnAdvanceStatusAction');
-  if (btnAdvanceStatusAction) {
-    btnAdvanceStatusAction.addEventListener('click', async () => {
-      if (!modalActiveOrder) return;
-      const targetAction = btnAdvanceStatusAction.getAttribute('data-target-action');
-      if (targetAction === 'settle') {
-        const settleBtn = document.getElementById('btnModalSettlePayment');
-        if (settleBtn) settleBtn.click();
-      } else if (targetAction) {
-        await advanceOrderStatus(modalActiveOrder._id || modalActiveOrder.orderNumber, targetAction);
+  // Delegated Table Pill Clicks
+  if (tablePillsRow) {
+    tablePillsRow.addEventListener('click', (e) => {
+      const btn = e.target.closest('.table-pill');
+      if (btn) {
+        const t = btn.getAttribute('data-table');
+        if (t) selectTable(t);
       }
     });
   }
 
-  if (btnCloseTableModal) {
-    btnCloseTableModal.addEventListener('click', () => {
-      if (tableDetailModal) tableDetailModal.classList.remove('open');
-      modalActiveOrder = null;
+  if (btnTopCheckStatus) {
+    btnTopCheckStatus.addEventListener('click', () => {
+      const activeOrder = getActiveOrderForSelectedTable();
+      if (activeOrder) openTableDetailModal(selectedTable, activeOrder);
     });
   }
 
-  // Modal: Add more items to table
-  if (btnModalAddMoreItems) {
-    btnModalAddMoreItems.addEventListener('click', () => {
-      const targetTbl = (modalActiveOrder && modalActiveOrder.locationDetails && modalActiveOrder.locationDetails.tableNumber) 
-        ? modalActiveOrder.locationDetails.tableNumber 
-        : selectedTable;
-      selectTable(targetTbl);
-      if (tableDetailModal) tableDetailModal.classList.remove('open');
-      modalActiveOrder = null;
-      switchView('catalog');
-      showToast(`Selected ${selectedTable}! Tap any water bottle, drink, or food item to add to running bill.`, 'success');
-    });
-  }
-
-  // Thermal Receipt Printing for Tables
-  function printOrderReceipt(order, tableName) {
-    if (!order || !printableBillReceipt) return;
-
-    const dateStr = new Date(order.createdAt || Date.now()).toLocaleString();
-    let rowsHtml = '';
-    (order.items || []).forEach(it => {
-      const lineTot = it.subtotal || (it.unitPrice * it.quantity);
-      rowsHtml += `
-        <tr>
-          <td>${it.quantity}x</td>
-          <td>${it.title}${it.variant ? ` (${it.variant})` : ''}</td>
-          <td style="text-align: right;">₹${it.unitPrice}</td>
-          <td style="text-align: right;">₹${lineTot}</td>
-        </tr>
-      `;
-    });
-
-    printableBillReceipt.innerHTML = `
-      <div class="receipt-header">
-        <div class="receipt-title">⚓ ANCHOR CAFE ⚓</div>
-        <div class="receipt-meta">Ramapuram Beach, Chirala (A.P.)</div>
-        <div class="receipt-meta">Live Beach POS &amp; Order Terminal</div>
-        <div class="receipt-meta" style="margin-top: 5px;"><strong>${tableName || order.locationDetails?.tableNumber || 'Beach Order'}</strong></div>
-        <div class="receipt-meta">Order: ${order.orderNumber}</div>
-        <div class="receipt-meta">${dateStr}</div>
-      </div>
-      <table class="receipt-table">
-        <thead>
-          <tr>
-            <th>Qty</th>
-            <th>Item</th>
-            <th style="text-align: right;">Price</th>
-            <th style="text-align: right;">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml}
-        </tbody>
-      </table>
-      <div class="receipt-total-row">
-        <span>TOTAL BILL AMOUNT</span>
-        <span>₹${order.finalTotalAmount || order.subtotalAmount || 0}</span>
-      </div>
-      <div style="font-size: 11px; margin-top: 4px;">
-        Payment: <strong>${order.paymentMethod || 'PHONEPE'}</strong> (${order.paymentStatus || 'UNPAID'})
-      </div>
-      <div class="receipt-footer">
-        <div>Thank you for visiting Anchor Cafe!</div>
-        <div>Experience the Ocean Waves &bull; Visit Again 🌊</div>
-      </div>
-    `;
-
-    window.print();
-  }
-
-  if (btnModalPrintBill) {
-    btnModalPrintBill.addEventListener('click', () => {
-      if (modalActiveOrder) {
-        printOrderReceipt(modalActiveOrder, selectedTable);
-      }
-    });
-  }
-
-  // Modal Payment Ticks
-  if (modalPaymentTicks) {
-    modalPaymentTicks.addEventListener('click', (e) => {
-      const btn = e.target.closest('.pay-tick-btn');
-      if (!btn) return;
-      modalPaymentTicks.querySelectorAll('.pay-tick-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      modalSelectedPaymentMethod = btn.getAttribute('data-settle-method');
-    });
-  }
-
-  // Modal: Confirm Payment & Free Table
-  if (btnModalSettlePayment) {
-    btnModalSettlePayment.addEventListener('click', async () => {
-    if (!modalActiveOrder) return;
-    try {
-      btnModalSettlePayment.disabled = true;
-      btnModalSettlePayment.textContent = 'Settling...';
-
-      const res = await fetch('/api/orders/settle-table', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: modalActiveOrder._id,
-          paymentMethod: modalSelectedPaymentMethod
-        })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        soundEngine.playPaymentSuccess();
-        showToast(`✅ ${selectedTable} settled via ${modalSelectedPaymentMethod}! Table is now FREE.`, 'success');
-        tableDetailModal.classList.remove('open');
-        modalActiveOrder = null;
-        clearCart();
-        fetchTablesOverview();
-      } else {
-        showToast(data.message || 'Error settling table', 'danger');
-      }
-    } catch (err) {
-      showToast(err.message, 'danger');
-    } finally {
-      btnModalSettlePayment.disabled = false;
-      btnModalSettlePayment.textContent = '✅ Confirm Paid & Free Table';
-    }
-  });
-  }
-
-  // --- View Switcher Logic ---
-  function switchView(mode) {
+  // ==========================================================================
+  // 6. View Mode Switcher: Menu Catalog vs 9-Tables Floor
+  // ==========================================================================
+  function switchMode(mode) {
     if (mode === 'catalog') {
       tabBtnMenuCatalog.classList.add('active');
       tabBtnTablesOverview.classList.remove('active');
       viewMenuCatalog.style.display = 'flex';
       viewTablesGrid.style.display = 'none';
     } else {
-      tabBtnMenuCatalog.classList.remove('active');
       tabBtnTablesOverview.classList.add('active');
+      tabBtnMenuCatalog.classList.remove('active');
       viewMenuCatalog.style.display = 'none';
       viewTablesGrid.style.display = 'block';
-      fetchTablesOverview();
+      renderTablesFloorGrid();
+      renderTakeawaysFloorGrid();
     }
   }
 
-  if (tabBtnMenuCatalog) tabBtnMenuCatalog.addEventListener('click', () => switchView('catalog'));
-  if (tabBtnTablesOverview) tabBtnTablesOverview.addEventListener('click', () => switchView('tables'));
-  if (btnRefreshTables) btnRefreshTables.addEventListener('click', fetchTablesOverview);
+  if (tabBtnMenuCatalog) tabBtnMenuCatalog.addEventListener('click', () => switchMode('catalog'));
+  if (tabBtnTablesOverview) tabBtnTablesOverview.addEventListener('click', () => switchMode('floor'));
+  if (btnRefreshTables) btnRefreshTables.addEventListener('click', () => fetchTablesOverview(true));
 
-  // Table Capacity Increase / Decrease Handlers
-  if (btnIncreaseTable) {
-    btnIncreaseTable.addEventListener('click', async () => {
-      try {
-        btnIncreaseTable.disabled = true;
-        const res = await fetch('/api/orders/tables/increase', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-          showToast(`✅ ${data.message}`, 'success');
-          fetchTablesOverview();
-        } else {
-          showToast(data.message || 'Could not increase table count', 'danger');
-        }
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        btnIncreaseTable.disabled = false;
-      }
-    });
-  }
-
-  if (btnDecreaseTable) {
-    btnDecreaseTable.addEventListener('click', async () => {
-      try {
-        btnDecreaseTable.disabled = true;
-        const res = await fetch('/api/orders/tables/decrease', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-          showToast(`✅ ${data.message}`, 'success');
-          fetchTablesOverview();
-        } else {
-          showToast(data.message || 'Could not decrease table count', 'danger');
-        }
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        btnDecreaseTable.disabled = false;
-      }
-    });
-  }
-
-  // --- Daily Expenses & Petty Cash Functions ---
-  async function fetchExpenseSummary() {
-    try {
-      const res = await fetch('/api/expenses/summary');
-      const data = await res.json();
-      if (data.success) {
-        const todayExp = data.today.totalExpenses || 0;
-        if (topTodayExpensesPill) topTodayExpensesPill.textContent = `₹${todayExp}`;
-        if (expSummaryGross) expSummaryGross.textContent = `₹${data.today.grossSales || 0}`;
-        if (expSummaryTotal) expSummaryTotal.textContent = `₹${todayExp}`;
-        if (expSummaryNet) expSummaryNet.textContent = `₹${data.today.netSales || 0}`;
-      }
-    } catch (err) {
-      console.error('Expense summary error:', err);
-    }
-  }
-
-  async function fetchExpensesList(filter = 'today') {
-    try {
-      currentExpenseFilter = filter;
-      const res = await fetch(`/api/expenses?filter=${filter}`);
-      const data = await res.json();
-      if (data.success) {
-        renderExpensesList(data.expenses || []);
-      }
-    } catch (err) {
-      console.error('Expenses list error:', err);
-    }
-  }
-
-  function renderExpensesList(expenses) {
-    if (!expensesListContainer) return;
-    expensesListContainer.innerHTML = '';
-    if (expensesLogCount) expensesLogCount.textContent = expenses.length;
-
-    if (expenses.length === 0) {
-      expensesListContainer.innerHTML = `
-        <div style="text-align: center; padding: 1.5rem; color: var(--color-foam); opacity: 0.7; font-size: 0.85rem;">
-          No requirements or expenses recorded for this period.
-        </div>
-      `;
-      return;
-    }
-
-    expenses.forEach(exp => {
-      const row = document.createElement('div');
-      row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; background: rgba(11, 37, 69, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem;';
-
-      const sourceLabel = exp.deductedFrom === 'YESTERDAYS_SALES' ? "Yesterday's Sales" : (exp.deductedFrom === 'PETTY_CASH' ? 'Petty Cash' : "Today's Sales");
-      const dateStr = new Date(exp.expenseDate).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + new Date(exp.expenseDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      row.innerHTML = `
-        <div>
-          <div style="font-weight: 700; color: var(--color-sand); font-size: 0.85rem;">
-            ${exp.title}
-          </div>
-          <div style="font-size: 0.72rem; color: var(--color-sand-muted); display: flex; gap: 0.4rem; align-items: center; margin-top: 0.15rem; flex-wrap: wrap;">
-            <span style="background: rgba(201,168,106,0.15); color: var(--color-gold); padding: 0.1rem 0.35rem; border-radius: 3px;">${exp.category.replace('_', ' ')}</span>
-            <span>&bull; Deducted: <strong style="color: #FFB4A2;">${sourceLabel}</strong></span>
-            <span>&bull; ${dateStr}</span>
-          </div>
-          ${exp.notes ? `<small style="font-size: 0.7rem; color: var(--color-foam); opacity: 0.8; display: block;">Note: ${exp.notes}</small>` : ''}
-        </div>
-        <div style="display: flex; align-items: center; gap: 0.75rem;">
-          <div style="font-size: 1.05rem; font-weight: 800; color: #E63946;">-₹${exp.amount}</div>
-          <button class="btn-outline btn-delete-expense" data-id="${exp._id}" style="padding: 0.2rem 0.45rem; font-size: 0.75rem; border-color: rgba(230,57,70,0.5); color: #E63946;" title="Void / Delete Expense">&times;</button>
-        </div>
-      `;
-
-      row.querySelector('.btn-delete-expense').addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (confirm(`Void expense "${exp.title}" (₹${exp.amount})?`)) {
-          await deleteExpense(exp._id);
-        }
-      });
-
-      expensesListContainer.appendChild(row);
-    });
-  }
-
-  async function deleteExpense(id) {
-    try {
-      const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message, 'success');
-        fetchExpenseSummary();
-        fetchExpensesList(currentExpenseFilter);
-      } else {
-        showToast(data.message || 'Failed to delete expense', 'danger');
-      }
-    } catch (err) {
-      showToast(err.message, 'danger');
-    }
-  }
-
-  if (btnOpenExpensesModal) {
-    btnOpenExpensesModal.addEventListener('click', () => {
-      expensesModal.classList.add('open');
-      fetchExpenseSummary();
-      fetchExpensesList('today');
-    });
-  }
-
-  if (btnCloseExpensesModal) btnCloseExpensesModal.addEventListener('click', () => expensesModal.classList.remove('open'));
-  if (btnCloseExpensesModalBtn) btnCloseExpensesModalBtn.addEventListener('click', () => expensesModal.classList.remove('open'));
-
-  // Preset buttons handler
-  document.querySelectorAll('.exp-preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (expTitleInput) expTitleInput.value = btn.getAttribute('data-preset-title');
-      if (expCategorySelect) expCategorySelect.value = btn.getAttribute('data-preset-cat');
-      if (expAmountInput) {
-        expAmountInput.value = btn.getAttribute('data-preset-amt');
-        expAmountInput.focus();
-      }
-    });
-  });
-
-  if (btnSaveExpense) {
-    btnSaveExpense.addEventListener('click', async () => {
-      const title = expTitleInput.value.trim();
-      const amount = Number(expAmountInput.value);
-      const category = expCategorySelect.value;
-      const deductedFrom = expDeductionSelect.value;
-      const notes = expNotesInput.value.trim();
-
-      if (!title || !amount || amount <= 0) {
-        showToast('Please enter requirement title and amount', 'warning');
-        return;
-      }
-
-      try {
-        btnSaveExpense.disabled = true;
-        btnSaveExpense.textContent = 'Saving...';
-
-        const res = await fetch('/api/expenses', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, amount, category, deductedFrom, notes })
-        });
-
-        const data = await res.json();
-        if (data.success) {
-          showToast(`✅ ${data.message}`, 'success');
-          expTitleInput.value = '';
-          expAmountInput.value = '';
-          expNotesInput.value = '';
-          fetchExpenseSummary();
-          fetchExpensesList(currentExpenseFilter);
-        } else {
-          showToast(data.message || 'Error recording expense', 'danger');
-        }
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        btnSaveExpense.disabled = false;
-        btnSaveExpense.textContent = '💾 Record & Deduct';
-      }
-    });
-  }
-
-  if (btnFilterExpToday) {
-    btnFilterExpToday.addEventListener('click', () => {
-      document.querySelectorAll('#btnFilterExpToday, #btnFilterExpYesterday, #btnFilterExpAll').forEach(b => b.classList.remove('active'));
-      btnFilterExpToday.classList.add('active');
-      fetchExpensesList('today');
-    });
-  }
-
-  if (btnFilterExpYesterday) {
-    btnFilterExpYesterday.addEventListener('click', () => {
-      document.querySelectorAll('#btnFilterExpToday, #btnFilterExpYesterday, #btnFilterExpAll').forEach(b => b.classList.remove('active'));
-      btnFilterExpYesterday.classList.add('active');
-      fetchExpensesList('yesterday');
-    });
-  }
-
-  if (btnFilterExpAll) {
-    btnFilterExpAll.addEventListener('click', () => {
-      document.querySelectorAll('#btnFilterExpToday, #btnFilterExpYesterday, #btnFilterExpAll').forEach(b => b.classList.remove('active'));
-      btnFilterExpAll.classList.add('active');
-      fetchExpensesList('all');
-    });
-  }
-
-  // --- Helper to get active running order for current table ---
-  function getActiveOrderForSelectedTable() {
-    if (selectedTable === 'Takeaway') return null;
-    const matched = tablesData.find(t => t.tableNumber === selectedTable);
-    if (matched && matched.isOccupied && matched.order) {
-      return matched.order;
-    }
-    return null;
-  }
-
-  function updateActiveTableNotice() {
-    if (!cartActiveTableNotice) return;
-    const activeOrder = getActiveOrderForSelectedTable();
-    if (activeOrder) {
-      cartActiveTableNotice.style.display = 'block';
-      if (activeTableNoticeTitle) activeTableNoticeTitle.textContent = `🔔 ${selectedTable} Active Bill`;
-      if (activeTableNoticeBill) activeTableNoticeBill.textContent = `₹${activeOrder.finalTotalAmount} (${activeOrder.totalItemCount} items)`;
-      if (activeTableNoticeText) {
-        activeTableNoticeText.textContent = `Guests dining. New items (water bottles, drinks, food) added below will automatically append to this table's running bill!`;
-      }
-      if (guestNameInput && (!guestNameInput.value || guestNameInput.value === 'Guest')) {
-        guestNameInput.value = activeOrder.locationDetails?.customerName || 'Guest';
-      }
-    } else {
-      cartActiveTableNotice.style.display = 'none';
-    }
-  }
-
-  // --- Select Table Pill in Cart ---
-  function selectTable(tableName) {
-    selectedTable = tableName;
-    if (selectedTableDisplay) selectedTableDisplay.value = tableName;
-    if (topActiveTableLabel) topActiveTableLabel.textContent = tableName;
-    
-    // Update mobile bottom bar badge
-    const mobileCartTableLabel = document.getElementById('mobileCartTableLabel');
-    if (mobileCartTableLabel) mobileCartTableLabel.textContent = tableName;
-    
-    // Update top strip label
-    if (stripActiveTableLabel) stripActiveTableLabel.textContent = tableName;
-
-    // Update active sheet text if open
-    if (sheetActiveTableText) sheetActiveTableText.textContent = tableName;
-
-    document.querySelectorAll('.table-pill').forEach(btn => {
-      if (btn.getAttribute('data-table') === tableName) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
-    });
-
-    renderMobileTableStrip();
-    if (mobileTableBottomSheet && mobileTableBottomSheet.classList.contains('open')) {
-      renderTableBottomSheet();
-    }
-    updateActiveTableNotice();
-    renderCart();
-  }
-
-  tablePillsRow.addEventListener('click', (e) => {
-    const btn = e.target.closest('.table-pill');
-    if (!btn) return;
-    const tName = btn.getAttribute('data-table');
-    selectTable(tName);
-
-    if (tName === 'Takeaway') {
-      if (activeTakeawaysData.length > 0) {
-        showToast(`${activeTakeawaysData.length} active takeaway orders in progress`, 'info');
-      }
-      return;
-    }
-
-    // If occupied, notify cashier that items will be added to this active bill
-    const matched = tablesData.find(t => t.tableNumber === tName);
-    if (matched && matched.isOccupied && matched.order) {
-      showToast(`Selected ${tName} (Running: ₹${matched.order.finalTotalAmount}). Tap water bottle, drinks, or items to add to bill!`, 'info');
-    }
-  });
-
-  // --- Render Menu Items (Batched with DocumentFragment for Zero Stutter) ---
+  // ==========================================================================
+  // 7. Menu Offerings Grid & Fast Filtering
+  // ==========================================================================
   function renderItems() {
+    if (!itemsGrid) return;
     itemsGrid.innerHTML = '';
 
-    const q = searchQuery.toLowerCase().trim();
-    const filtered = menuCatalog.filter(item => {
-      const matchesCategory = currentCategory === 'all' || item.category === currentCategory;
-      const matchesSearch = !q ||
-        item.title.toLowerCase().includes(q) ||
-        item.sku.toLowerCase().includes(q) ||
-        (item.description && item.description.toLowerCase().includes(q)) ||
-        (item.tags && item.tags.some(t => t.toLowerCase().includes(q)));
-      return matchesCategory && matchesSearch;
-    });
-
-    const categoryOrder = [
-      'soft-drinks',
-      'energy-drinks',
-      'hot-beverages',
-      'shakes',
-      'mojitos',
-      'snacks',
-      'icecream',
-      'beach-services'
-    ];
-
-    filtered.sort((a, b) => {
-      const catA = categoryOrder.indexOf(a.category);
-      const catB = categoryOrder.indexOf(b.category);
-      const orderA = catA === -1 ? 99 : catA;
-      const orderB = catB === -1 ? 99 : catB;
-      if (orderA !== orderB) return orderA - orderB;
-      return (a.sku || '').localeCompare(b.sku || '');
-    });
-
-    if (catalogStats) {
-      catalogStats.textContent = `${filtered.length} coastal offerings loaded`;
+    let filtered = menuCatalog;
+    if (currentCategory !== 'all') {
+      filtered = filtered.filter(it => it.category === currentCategory);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(it =>
+        it.title.toLowerCase().includes(q) ||
+        (it.sku && it.sku.toLowerCase().includes(q)) ||
+        (it.description && it.description.toLowerCase().includes(q))
+      );
     }
 
     if (filtered.length === 0) {
       itemsGrid.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: var(--color-foam); opacity: 0.7;">
-          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🌊</div>
-          <p>No offerings found matching "${searchQuery}"</p>
+        <div style="grid-column: 1 / -1; padding: 3rem 1rem; text-align: center; color: var(--color-foam); opacity: 0.7;">
+          <div style="font-size: 2rem; margin-bottom: 0.4rem;">🔍</div>
+          <p style="font-weight: 700;">No offerings found</p>
+          <small>Try selecting "All Offerings" or clearing your search</small>
         </div>
       `;
       return;
@@ -1289,61 +368,16 @@ document.addEventListener('DOMContentLoaded', () => {
       card.className = 'menu-card';
       card.setAttribute('data-id', item._id);
 
-      // Determine badge
-      let badgeClass = 'veg';
-      let badgeLabel = 'Veg';
-      if (item.category === 'soft-drinks') {
-        badgeClass = 'veg';
-        badgeLabel = item.title.includes('Water') ? 'Water' : 'Soft Drink';
-      } else if (item.category === 'energy-drinks') {
-        badgeClass = 'non-veg';
-        badgeLabel = 'Energy';
-      } else if (item.tags && item.tags.includes('Non-Veg')) {
-        badgeClass = 'non-veg';
-        badgeLabel = 'Non-Veg';
-      } else if (item.category === 'beach-services') {
-        badgeClass = 'experience';
-        badgeLabel = 'Experience';
-      }
-
-      // Price rendering with direct clickable edit
-      let priceHtml = '';
-      if (item.hasVariants) {
-        const minPrice = Math.min(...item.variants.map(v => v.sellingPrice));
-        priceHtml = `
-          <div class="card-price-container btn-edit-price" data-id="${item._id}" title="Click to modify cost/price for ${item.title}">
-            <span style="font-size: 0.68rem; color: var(--color-sand-muted); display: block;">From</span>
-            <div style="display: flex; align-items: baseline; gap: 0.35rem;">
-              <span class="charm-price">₹${minPrice}</span>
-              <span class="price-modify-hint">✏️ Cost</span>
-            </div>
-          </div>
-        `;
-      } else {
-        priceHtml = `
-          <div class="card-price-container btn-edit-price" data-id="${item._id}" title="Click to modify cost/price for ${item.title}">
-            <div style="display: flex; align-items: baseline; gap: 0.35rem;">
-              <span class="charm-price">₹${item.sellingPrice}</span>
-              ${item.isMrp ? '<span class="price-tag-rule">MRP</span>' : (item.category === 'hot-beverages' ? '<span class="price-tag-rule">Authentic</span>' : '<span class="price-tag-rule">Price</span>')}
-            </div>
-            <span class="price-modify-hint">✏️ Modify Cost</span>
-          </div>
-        `;
-      }
-
       card.innerHTML = `
-        <div class="card-top">
-          <span class="card-sku">${item.sku}</span>
-          <div style="display: flex; gap: 0.35rem; align-items: center;">
-            <button class="btn-edit-price" data-id="${item._id}" title="Edit Cost / Price for ${item.title}">✏️ Edit</button>
-            <span class="card-badge ${badgeClass}">${badgeLabel}</span>
-          </div>
+        <div>
+          <h3 class="card-title">${item.title}</h3>
+          <p class="card-desc">${item.servingSize ? `${item.servingSize} &bull; ` : ''}${item.description || ''}</p>
         </div>
-        <h3 class="card-title">${item.title}</h3>
-        <p class="card-desc">${item.servingSize ? `<strong>${item.servingSize}</strong> &bull; ` : ''}${item.description || ''}</p>
         <div class="card-bottom">
-          ${priceHtml}
-          <button class="btn-add-item" title="Add to Table Order" aria-label="Add ${item.title}">${item.hasVariants ? '⚡ Options' : '➕'}</button>
+          <span class="card-price">₹${item.sellingPrice}</span>
+          <button class="btn-add-item" type="button" aria-label="Add ${item.title}">
+            ${item.hasVariants ? '⚡ Options' : '➕ Add'}
+          </button>
         </div>
       `;
 
@@ -1353,30 +387,18 @@ document.addEventListener('DOMContentLoaded', () => {
     itemsGrid.appendChild(fragment);
   }
 
-  // Delegated click listener on itemsGrid (Zero listener bloat - handles all cards & edit buttons)
+  // Delegated Card Click Listener (Zero Stutter)
   if (itemsGrid) {
     itemsGrid.addEventListener('click', (e) => {
-      const editBtn = e.target.closest('.btn-edit-price');
-      if (editBtn) {
-        e.stopPropagation();
-        const itemId = editBtn.getAttribute('data-id');
-        const item = menuCatalog.find(i => String(i._id) === String(itemId));
-        if (item) openEditPriceModal(item);
-        return;
-      }
-
       const card = e.target.closest('.menu-card');
       if (card) {
-        const itemId = card.getAttribute('data-id');
-        const item = menuCatalog.find(i => String(i._id) === String(itemId));
-        if (item) {
-          handleItemSelect(item);
-        }
+        const id = card.getAttribute('data-id');
+        const item = menuCatalog.find(i => String(i._id) === String(id));
+        if (item) handleItemSelect(item);
       }
     });
   }
 
-  // --- Handle Item Select ---
   function handleItemSelect(item) {
     if (item.hasVariants && item.variants && item.variants.length > 0) {
       openShakeVariantModal(item);
@@ -1387,195 +409,115 @@ document.addEventListener('DOMContentLoaded', () => {
         title: item.title,
         category: item.category,
         variant: null,
-        unitPrice: item.sellingPrice,
-        baseCost: item.baseCost
+        unitPrice: item.sellingPrice
       });
     }
   }
 
-  // --- Shake Variant Modal Logic ---
-  function openShakeVariantModal(shakeItem) {
-    activeShakeItem = shakeItem;
-    activeShakeVariant = shakeItem.variants[2] || shakeItem.variants[0];
-    variantModalTitle.textContent = `${shakeItem.title}`;
+  // Category Tabs
+  if (categoryFilterBar) {
+    categoryFilterBar.addEventListener('click', (e) => {
+      const pill = e.target.closest('.cat-pill');
+      if (!pill) return;
+      document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      currentCategory = pill.getAttribute('data-cat') || 'all';
+      renderItems();
+    });
+  }
 
-    variantsGrid.innerHTML = '';
-    shakeItem.variants.forEach(variant => {
-      const card = document.createElement('div');
-      card.className = `variant-card ${variant.variantName === activeShakeVariant.variantName ? 'selected' : ''}`;
-      card.innerHTML = `
-        <div class="variant-name">${variant.variantName}</div>
-        <div class="variant-price">₹${variant.sellingPrice}</div>
-        <small style="font-size: 0.68rem; color: var(--color-foam); opacity: 0.8;">
-          ${variant.variantName === 'Thickshake' ? 'Ultra-dense Spoonable' : (variant.variantName === 'Blended' ? 'Creamy Soft Serve' : 'Light & Chilled')}
-        </small>
-      `;
+  // Fast Search with Debounce
+  let searchTimer = null;
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const val = e.target.value;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        searchQuery = val;
+        renderItems();
+      }, 100);
+    });
+  }
 
-      card.addEventListener('click', () => {
-        document.querySelectorAll('.variant-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-        activeShakeVariant = variant;
+  // Speed Bar 1-Tap Quick Add
+  if (speedBarScroll) {
+    speedBarScroll.addEventListener('click', (e) => {
+      const btn = e.target.closest('.speed-btn');
+      if (!btn) return;
+
+      const sku = btn.getAttribute('data-sku');
+      const title = btn.getAttribute('data-title');
+      const price = Number(btn.getAttribute('data-price')) || 0;
+
+      const matched = menuCatalog.find(m => m.sku === sku || m.title.toLowerCase() === title.toLowerCase());
+      addToCart({
+        menuItemId: matched ? matched._id : undefined,
+        sku: matched ? matched.sku : sku,
+        title: matched ? matched.title : title,
+        category: matched ? matched.category : 'soft-drinks',
+        variant: null,
+        unitPrice: matched ? matched.sellingPrice : price
       });
+    });
+  }
 
-      variantsGrid.appendChild(card);
+  // ==========================================================================
+  // 8. Shake Variant Modal
+  // ==========================================================================
+  function openShakeVariantModal(item) {
+    if (!shakeVariantModal) return;
+    pendingShakeItem = item;
+    shakeModalTitle.textContent = item.title;
+    shakeVariantsList.innerHTML = '';
+
+    (item.variants || []).forEach(v => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'shake-variant-btn';
+      btn.innerHTML = `<span>${v.name}</span><strong style="color: var(--color-gold);">₹${v.price}</strong>`;
+      btn.addEventListener('click', () => {
+        addToCart({
+          menuItemId: item._id,
+          sku: item.sku,
+          title: item.title,
+          category: item.category,
+          variant: v.name,
+          unitPrice: v.price
+        });
+        closeShakeVariantModal();
+      });
+      shakeVariantsList.appendChild(btn);
     });
 
     shakeVariantModal.classList.add('open');
   }
 
   function closeShakeVariantModal() {
-    shakeVariantModal.classList.remove('open');
-    activeShakeItem = null;
-    activeShakeVariant = null;
-  }
-
-  if (btnConfirmVariant) {
-    btnConfirmVariant.addEventListener('click', () => {
-      if (!activeShakeItem || !activeShakeVariant) return;
-      addToCart({
-        menuItemId: activeShakeItem._id,
-        sku: activeShakeItem.sku,
-        title: activeShakeItem.title,
-        category: activeShakeItem.category,
-        variant: activeShakeVariant.variantName,
-        unitPrice: activeShakeVariant.sellingPrice,
-        baseCost: activeShakeVariant.baseCost
-      });
-      closeShakeVariantModal();
-    });
+    if (shakeVariantModal) shakeVariantModal.classList.remove('open');
+    pendingShakeItem = null;
   }
 
   if (btnCloseVariantModal) btnCloseVariantModal.addEventListener('click', closeShakeVariantModal);
-  if (btnCancelVariant) btnCancelVariant.addEventListener('click', closeShakeVariantModal);
+  if (btnCancelVariantModal) btnCancelVariantModal.addEventListener('click', closeShakeVariantModal);
 
-  // --- Edit Price / Cost Modal Logic ---
-  function openEditPriceModal(item) {
-    itemToEdit = item;
-    editPriceModalTitle.textContent = `✏️ Modify Cost & Price: ${item.title}`;
-    editPriceModalSubtitle.textContent = `Update customer selling price and cafe procurement cost for ${item.title} (${item.sku}). Saved permanently to database.`;
-
-    if (item.hasVariants && item.variants && item.variants.length > 0) {
-      standardPriceInputGroup.style.display = 'none';
-      variantPriceInputsGroup.style.display = 'flex';
-
-      const milk = item.variants.find(v => v.variantName === 'Milkshake');
-      const blend = item.variants.find(v => v.variantName === 'Blended');
-      const thick = item.variants.find(v => v.variantName === 'Thickshake');
-
-      if (inputVarMilkPrice) inputVarMilkPrice.value = milk ? milk.sellingPrice : '';
-      if (inputVarMilkCost) inputVarMilkCost.value = milk ? (milk.baseCost || milk.sellingPrice) : '';
-
-      if (inputVarBlendPrice) inputVarBlendPrice.value = blend ? blend.sellingPrice : '';
-      if (inputVarBlendCost) inputVarBlendCost.value = blend ? (blend.baseCost || blend.sellingPrice) : '';
-
-      if (inputVarThickPrice) inputVarThickPrice.value = thick ? thick.sellingPrice : '';
-      if (inputVarThickCost) inputVarThickCost.value = thick ? (thick.baseCost || thick.sellingPrice) : '';
-    } else {
-      standardPriceInputGroup.style.display = 'block';
-      variantPriceInputsGroup.style.display = 'none';
-      if (inputNewSellingPrice) inputNewSellingPrice.value = item.sellingPrice;
-      if (inputNewBaseCost) inputNewBaseCost.value = item.baseCost !== undefined ? item.baseCost : item.sellingPrice;
-      updateMarginDisplay();
-      setTimeout(() => inputNewSellingPrice && inputNewSellingPrice.focus(), 150);
-    }
-
-    editPriceModal.classList.add('open');
-  }
-
-  function closeEditPriceModal() {
-    editPriceModal.classList.remove('open');
-    itemToEdit = null;
-  }
-
-  if (btnCloseEditPriceModal) btnCloseEditPriceModal.addEventListener('click', closeEditPriceModal);
-  if (btnCancelEditPrice) btnCancelEditPrice.addEventListener('click', closeEditPriceModal);
-
-  if (btnSaveUpdatedPrice) {
-    btnSaveUpdatedPrice.addEventListener('click', async () => {
-    if (!itemToEdit) return;
-
-    try {
-      btnSaveUpdatedPrice.disabled = true;
-      btnSaveUpdatedPrice.textContent = '💾 Saving...';
-
-      let payload = {};
-      if (itemToEdit.hasVariants) {
-        payload.variants = [
-          { 
-            variantName: 'Milkshake', 
-            sellingPrice: Number(inputVarMilkPrice.value),
-            baseCost: inputVarMilkCost ? Number(inputVarMilkCost.value) : Number(inputVarMilkPrice.value)
-          },
-          { 
-            variantName: 'Blended', 
-            sellingPrice: Number(inputVarBlendPrice.value),
-            baseCost: inputVarBlendCost ? Number(inputVarBlendCost.value) : Number(inputVarBlendPrice.value)
-          },
-          { 
-            variantName: 'Thickshake', 
-            sellingPrice: Number(inputVarThickPrice.value),
-            baseCost: inputVarThickCost ? Number(inputVarThickCost.value) : Number(inputVarThickPrice.value)
-          }
-        ];
-      } else {
-        const newPrice = Number(inputNewSellingPrice.value);
-        const newCost = inputNewBaseCost ? Number(inputNewBaseCost.value) : newPrice;
-        if (isNaN(newPrice) || newPrice < 0) {
-          showToast('Please enter a valid price amount', 'warning');
-          btnSaveUpdatedPrice.disabled = false;
-          btnSaveUpdatedPrice.textContent = '💾 Save Updated Cost & Price';
-          return;
-        }
-        payload.sellingPrice = newPrice;
-        payload.baseCost = isNaN(newCost) ? newPrice : newCost;
-      }
-
-      const res = await fetch(`/api/menu/${itemToEdit._id}/price`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-      if (data.success && data.item) {
-        const idx = menuCatalog.findIndex(m => m._id === data.item._id);
-        if (idx !== -1) {
-          menuCatalog[idx] = data.item;
-        }
-        renderItems();
-        closeEditPriceModal();
-        showToast(`✅ Cost & Price for "${data.item.title}" updated permanently to ₹${data.item.sellingPrice}!`, 'success');
-      } else {
-        showToast(data.message || 'Failed to update cost/price', 'danger');
-      }
-    } catch (err) {
-      showToast(`Error: ${err.message}`, 'danger');
-    } finally {
-      btnSaveUpdatedPrice.disabled = false;
-      btnSaveUpdatedPrice.textContent = '💾 Save Updated Cost & Price';
-    }
-  });
-  }
-
-  // --- Enterprise Per-Table Cart Management ---
+  // ==========================================================================
+  // 9. Cart & Table Order Lifecycle Management
+  // ==========================================================================
   function addToCart(item) {
     const currentCart = getTableCart(selectedTable);
-    const existingIndex = currentCart.findIndex(c =>
-      c.title === item.title && c.variant === item.variant
-    );
+    const existing = currentCart.find(c => c.title === item.title && c.variant === item.variant);
 
-    if (existingIndex > -1) {
-      currentCart[existingIndex].quantity += 1;
+    if (existing) {
+      existing.quantity += 1;
     } else {
-      currentCart.push({
-        ...item,
-        quantity: 1
-      });
+      currentCart.push({ ...item, quantity: 1 });
     }
 
     persistTableCarts();
-    renderMobileTableStrip();
+    renderTablePills();
     renderCart();
+
+    if (soundEngine && soundEngine.playItemAdd) soundEngine.playItemAdd();
   }
 
   function changeQty(index, delta) {
@@ -1586,17 +528,18 @@ document.addEventListener('DOMContentLoaded', () => {
         currentCart.splice(index, 1);
       }
       persistTableCarts();
-      renderMobileTableStrip();
+      renderTablePills();
       renderCart();
     }
   }
 
   function clearCart() {
     clearTableCart(selectedTable);
-    renderMobileTableStrip();
+    renderTablePills();
     renderCart();
-    showToast(`Cleared draft items for ${selectedTable}`, 'info');
   }
+
+  if (btnClearCart) btnClearCart.addEventListener('click', clearCart);
 
   function calculateCartTotals() {
     const currentCart = getTableCart(selectedTable);
@@ -1610,6 +553,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderCart() {
+    if (!cartItemsList) return;
+
     const { subtotal, totalItems } = calculateCartTotals();
     const currentCart = getTableCart(selectedTable);
     const activeOrder = getActiveOrderForSelectedTable();
@@ -1618,93 +563,87 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let itemsHtml = '';
 
-    // SECTION 1: Active Placed Bill (Cooking / Served in Kitchen)
+    // SECTION 1: Placed Order Stepper & Breakdown (If Table is Occupied)
     if (activeOrder && activeOrder.items && activeOrder.items.length > 0) {
+      const st = activeOrder.orderStatus || 'PENDING';
+      let badgeColor = '#E76F51';
+      let badgeText = '🟡 1. Food Ordered (Cooking)';
+      let nextAction = 'READY_FOR_PICKUP';
+      let nextLabel = '🔔 Confirm Food Ready';
+      let nextBg = '#48CAE4';
+      let nextColor = '#06182C';
+
+      if (activeOrder.paymentStatus === 'PAID') {
+        badgeColor = 'var(--color-gold)';
+        badgeText = '✅ 4. PAID & FREE';
+        nextAction = null;
+        nextLabel = 'Completed';
+      } else if (st === 'SERVED') {
+        badgeColor = '#52B788';
+        badgeText = '🍽️ 3. Food Served (Dining)';
+        nextAction = 'settle';
+        nextLabel = `💳 Collect Payment & Settle Table`;
+        nextBg = 'linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%)';
+        nextColor = '#06182C';
+      } else if (st === 'READY_FOR_PICKUP') {
+        badgeColor = '#48CAE4';
+        badgeText = '🔔 2. Food Ready at Counter';
+        nextAction = 'SERVED';
+        nextLabel = '🍽️ Confirm Food Served to Table';
+        nextBg = '#52B788';
+        nextColor = '#06182C';
+      }
+
       itemsHtml += `
-        <div style="background: rgba(11, 37, 69, 0.7); border: 1px solid rgba(201, 168, 106, 0.4); border-radius: var(--radius-sm); padding: 0.6rem; margin-bottom: 0.75rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; border-bottom: 1px dashed rgba(255,255,255,0.12); padding-bottom: 0.35rem;">
-            <span style="font-size: 0.75rem; font-weight: 700; color: var(--color-gold); text-transform: uppercase;">
-              📋 Placed Order (${activeOrder.orderNumber})
-            </span>
-            <span style="font-size: 0.72rem; color: #52B788; font-weight: 700; background: rgba(82, 183, 136, 0.15); padding: 0.15rem 0.45rem; border-radius: 4px;">
-              ${activeOrder.paymentStatus === 'PAID' ? '🟢 Paid' : '🟡 Active Tab'}
+        <div class="placed-order-card">
+          <div class="placed-card-header">
+            <span class="placed-card-title">📋 Placed Order (${activeOrder.orderNumber})</span>
+            <span class="placed-card-status" style="background: rgba(201,168,106,0.18); color: var(--color-gold);">
+              ${activeOrder.paymentStatus === 'PAID' ? '🟢 Paid' : '🟡 Active Bill'}
             </span>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+
+          <div class="placed-items-list">
       `;
 
       activeOrder.items.forEach(it => {
         itemsHtml += `
-          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--color-foam);">
-            <span>
-              <strong style="color: var(--color-gold);">${it.quantity}x</strong> ${it.title}
-              ${it.variant ? `<small style="color: var(--color-sand-muted); font-size: 0.7rem;">(${it.variant})</small>` : ''}
-            </span>
-            <span style="font-weight: 600;">₹${it.subtotal || (it.unitPrice * it.quantity)}</span>
+          <div class="placed-item-line">
+            <span><strong style="color: var(--color-gold);">${it.quantity}x</strong> ${it.title}${it.variant ? ` <small>(${it.variant})</small>` : ''}</span>
+            <span style="font-weight: 700;">₹${it.subtotal || (it.unitPrice * it.quantity)}</span>
           </div>
         `;
       });
 
       itemsHtml += `
           </div>
-          <div style="display: flex; justify-content: space-between; margin-top: 0.45rem; padding-top: 0.35rem; border-top: 1px solid rgba(255,255,255,0.08); font-size: 0.8rem; font-weight: 700; color: var(--color-sand);">
-            <span>Placed Bill Subtotal:</span>
-            <span>₹${activeOrder.finalTotalAmount}</span>
+
+          <div class="placed-subtotal-line">
+            <span>Running Bill Total:</span>
+            <span style="color: var(--color-gold);">₹${activeOrder.finalTotalAmount}</span>
           </div>
-          ${(() => {
-            const currentSt = activeOrder.orderStatus || 'PENDING';
-            let badgeColor = '#E76F51';
-            let badgeText = '🟡 1. Food Ordered (Cooking)';
-            let nextAction = 'READY_FOR_PICKUP';
-            let nextLabel = '🔔 Confirm Food Ready';
-            let nextBg = '#48CAE4';
-            let nextColor = '#06182C';
 
-            if (activeOrder.paymentStatus === 'PAID') {
-              badgeColor = 'var(--color-gold)';
-              badgeText = '✅ 4. PAID & FREE';
-              nextAction = null;
-              nextLabel = 'Completed';
-            } else if (currentSt === 'SERVED') {
-              badgeColor = '#52B788';
-              badgeText = '🍽️ 3. Food Served to Table';
-              nextAction = 'settle';
-              nextLabel = `💳 Collect Payment & Settle Table`;
-              nextBg = 'linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%)';
-              nextColor = '#06182C';
-            } else if (currentSt === 'READY_FOR_PICKUP') {
-              badgeColor = '#48CAE4';
-              badgeText = '🔔 2. Food Ready at Counter';
-              nextAction = 'SERVED';
-              nextLabel = '🍽️ Confirm Food Served to Table';
-              nextBg = '#52B788';
-              nextColor = '#06182C';
-            }
-
-            return `
-              <div style="margin-top: 0.5rem; padding-top: 0.45rem; border-top: 1px dashed rgba(201, 168, 106, 0.25);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                  <span style="font-size: 0.72rem; color: var(--color-sand-muted); font-weight: 600;">Status Progression:</span>
-                  <span style="font-size: 0.72rem; font-weight: 700; color: ${badgeColor};">${badgeText}</span>
-                </div>
-                ${nextAction ? `
-                  <button class="btn-cart-advance-status" data-order-id="${activeOrder._id || activeOrder.orderNumber}" data-target-action="${nextAction}" style="background: ${nextBg}; color: ${nextColor};">
-                    ${nextLabel} &rarr;
-                  </button>
-                ` : ''}
-              </div>
-            `;
-          })()}
+          <div style="margin-top: 0.5rem; padding-top: 0.45rem; border-top: 1px dashed rgba(201, 168, 106, 0.25);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <span style="font-size: 0.72rem; color: var(--color-sand-muted); font-weight: 600;">Status Progression:</span>
+              <span style="font-size: 0.72rem; font-weight: 800; color: ${badgeColor};">${badgeText}</span>
+            </div>
+            ${nextAction ? `
+              <button class="btn-cart-advance-status" data-order-id="${activeOrder._id || activeOrder.orderNumber}" data-target-action="${nextAction}" style="background: ${nextBg}; color: ${nextColor};">
+                ${nextLabel} &rarr;
+              </button>
+            ` : ''}
+          </div>
         </div>
       `;
     }
 
-    // SECTION 2: New Reorder Additions (Draft in Cart for this table)
+    // SECTION 2: Draft Items in Cart
     if (currentCart.length > 0) {
       if (activeOrder) {
         itemsHtml += `
-          <div style="font-size: 0.75rem; font-weight: 700; color: #48CAE4; text-transform: uppercase; margin-bottom: 0.4rem; display: flex; justify-content: space-between; align-items: center;">
-            <span>➕ New Additions (Water Bottles / Food):</span>
+          <div style="font-size: 0.75rem; font-weight: 800; color: #48CAE4; text-transform: uppercase; margin-bottom: 0.4rem; display: flex; justify-content: space-between;">
+            <span>➕ Additions (Water / Food):</span>
             <span style="color: var(--color-gold);">+₹${subtotal}</span>
           </div>
         `;
@@ -1712,11 +651,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       currentCart.forEach((item, idx) => {
         itemsHtml += `
-          <div class="cart-item-row" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-sm); margin-bottom: 0.4rem; padding: 0.45rem;">
+          <div class="cart-item-row">
             <div class="item-info-col">
               <div class="item-info-title">${item.title}</div>
-              ${item.variant ? `<div class="item-info-variant">${item.variant}</div>` : ''}
-              <div class="item-info-price">₹${item.unitPrice} each</div>
+              <div class="item-info-price">${item.variant ? `${item.variant} &bull; ` : ''}₹${item.unitPrice} each</div>
             </div>
             <div class="qty-controls">
               <button class="btn-qty" data-idx="${idx}" data-delta="-1">-</button>
@@ -1731,21 +669,21 @@ document.addEventListener('DOMContentLoaded', () => {
       itemsHtml = `
         <div class="cart-empty-state">
           <div class="empty-icon">☕</div>
-          <p>${selectedTable} order is empty</p>
+          <p>${selectedTable} is empty</p>
           <small>Tap water bottle, soft drinks, coffee, or snacks to add</small>
         </div>
       `;
     } else {
       itemsHtml += `
-        <div style="text-align: center; padding: 0.75rem; border: 1px dashed rgba(201, 168, 106, 0.25); border-radius: var(--radius-sm); color: var(--color-sand-muted); font-size: 0.75rem; margin-top: 0.35rem;">
-          Tap any menu item (like water bottles, coffee, snacks) to append extra items to ${selectedTable}'s bill.
+        <div style="text-align: center; padding: 0.75rem; border: 1px dashed rgba(201, 168, 106, 0.25); border-radius: var(--radius-sm); color: var(--color-sand-muted); font-size: 0.75rem;">
+          Tap any menu item (like water bottles or snacks) to append extra items to ${selectedTable}'s bill.
         </div>
       `;
     }
 
     cartItemsList.innerHTML = itemsHtml;
 
-    // Attach qty listeners to draft items
+    // Attach listeners for draft qty controls
     cartItemsList.querySelectorAll('.btn-qty').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1755,7 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Attach listener for 1-tap cart status advance button
+    // Attach listener for cart status advance button
     const btnCartAdvance = cartItemsList.querySelector('.btn-cart-advance-status');
     if (btnCartAdvance) {
       btnCartAdvance.addEventListener('click', async (e) => {
@@ -1770,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Update Totals & Dynamic Action Buttons
+    // Update Totals & Settlement Action Buttons
     if (activeOrder) {
       const runningBill = Number(activeOrder.finalTotalAmount) || 0;
       const combinedTotal = runningBill + subtotal;
@@ -1793,169 +731,461 @@ document.addEventListener('DOMContentLoaded', () => {
       if (btnConfirmPaymentAndOrder) btnConfirmPaymentAndOrder.textContent = `1-Tap: Confirm & Settle`;
     }
 
-    // Update mobile floating bar & top mobile badge
-    const mobileCartTableLabel = document.getElementById('mobileCartTableLabel');
-    const mobileCartCount = document.getElementById('mobileCartCount');
-    const mobileCartTotal = document.getElementById('mobileCartTotal');
-    const topCartBadgeCount = document.getElementById('topCartBadgeCount');
-    const topCartBadgeTotal = document.getElementById('topCartBadgeTotal');
-    const displayTotal = activeOrder ? (Number(activeOrder.finalTotalAmount) + subtotal) : subtotal;
+    // Update Mobile Floating Bottom Bar
+    const runningAmt = activeOrder ? Number(activeOrder.finalTotalAmount) : 0;
+    const mobileGrandTotal = runningAmt + subtotal;
+    const mobileGrandCount = totalItems + (activeOrder ? activeOrder.totalItemCount : 0);
 
     if (mobileCartTableLabel) mobileCartTableLabel.textContent = selectedTable;
-    if (mobileCartCount) mobileCartCount.textContent = totalItems + (activeOrder ? activeOrder.totalItemCount : 0);
-    if (mobileCartTotal) mobileCartTotal.textContent = `₹${displayTotal}`;
-    if (topCartBadgeCount) topCartBadgeCount.textContent = totalItems + (activeOrder ? activeOrder.totalItemCount : 0);
-    if (topCartBadgeTotal) topCartBadgeTotal.textContent = `₹${displayTotal}`;
+    if (mobileCartCount) mobileCartCount.textContent = mobileGrandCount;
+    if (mobileCartTotal) mobileCartTotal.textContent = `₹${mobileGrandTotal}`;
   }
 
-  if (btnClearCart) btnClearCart.addEventListener('click', clearCart);
-
-  // --- Payment Ticks in Cart Panel ---
-  document.querySelectorAll('.payment-ticks-row .pay-tick-btn').forEach(btn => {
+  // Payment Method Ticks
+  document.querySelectorAll('.pay-tick-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.payment-ticks-row .pay-tick-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.pay-tick-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      selectedPaymentMethod = btn.getAttribute('data-method');
+      selectedPaymentMethod = btn.getAttribute('data-method') || 'PHONEPE';
     });
   });
 
-  // --- Category Filter Tabs ---
-  if (categoryFilterBar) {
-    categoryFilterBar.addEventListener('click', (e) => {
-      const target = e.target.closest('.cat-pill');
-      if (!target) return;
-      document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
-      target.classList.add('active');
-      currentCategory = target.getAttribute('data-cat');
-      renderItems();
-    });
+  // Action: Advance Order Status (1-Tap Progression)
+  async function advanceOrderStatus(orderId, nextStatus) {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      const data = await res.json();
+      if (data.success && data.order) {
+        if (modalActiveOrder && (String(modalActiveOrder._id) === String(orderId) || modalActiveOrder.orderNumber === orderId)) {
+          modalActiveOrder = data.order;
+          updateModalStatusView(data.order);
+        }
+        showToast(`Table confirmed: ${nextStatus}!`, 'success');
+        if (soundEngine && soundEngine.playChime) soundEngine.playChime();
+        fetchTablesOverview(true);
+      } else {
+        showToast(data.message || 'Status update failed', 'error');
+      }
+    } catch (err) {
+      console.error('Status transition error:', err);
+      showToast('Could not update status', 'error');
+    }
   }
 
-  let searchDebounceTimer = null;
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const val = e.target.value;
-      clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(() => {
-        searchQuery = val;
-        renderItems();
-      }, 120);
-    });
-  }
-
-  // --- Create / Fire / Settle Order ---
+  // Action: Submit Order (Save to Tab OR Settle Immediately)
   async function submitTableOrder(isPaidImmediately = false) {
     const currentCart = getTableCart(selectedTable);
     const activeOrder = getActiveOrderForSelectedTable();
 
-    // Case 1: Active table exists, NO new draft items, and cashier clicks "Settle Table"
-    if (currentCart.length === 0 && activeOrder && isPaidImmediately) {
-      try {
-        btnConfirmPaymentAndOrder.disabled = true;
-        btnConfirmPaymentAndOrder.textContent = 'Settling...';
+    // Case 1: Settle existing running table tab with no new draft items
+    if (activeOrder && currentCart.length === 0) {
+      if (!isPaidImmediately) {
+        showToast(`Order for ${selectedTable} is already saved and active!`, 'info');
+        return;
+      }
 
-        const res = await fetch('/api/orders/settle-table', {
+      btnConfirmPaymentAndOrder.disabled = true;
+      btnConfirmPaymentAndOrder.textContent = 'Processing Settlement...';
+
+      try {
+        const settleRes = await fetch('/api/orders/tables/settle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            orderId: activeOrder._id,
-            paymentMethod: selectedPaymentMethod
+            orderId: activeOrder._id || activeOrder.orderNumber,
+            tableNumber: selectedTable,
+            paymentMethod: selectedPaymentMethod,
+            amountReceived: activeOrder.finalTotalAmount
           })
         });
 
-        const data = await res.json();
-        if (data.success) {
-          soundEngine.playPaymentSuccess();
-          showToast(`✅ ${selectedTable} settled via ${selectedPaymentMethod}! Table is now FREE for new guests.`, 'success');
+        const settleData = await settleRes.json();
+        if (settleData.success) {
           clearTableCart(selectedTable);
-          fetchTablesOverview();
+          showToast(`Table ${selectedTable} settled via ${selectedPaymentMethod}! Table is now FREE.`, 'success');
+          if (soundEngine && soundEngine.playPaymentSuccess) soundEngine.playPaymentSuccess();
+          if (posCartPanel) posCartPanel.classList.remove('mobile-open');
+          if (cartMobileBackdrop) cartMobileBackdrop.classList.remove('open');
+          fetchTablesOverview(true);
         } else {
-          showToast(data.message || 'Error settling table', 'danger');
+          showToast(settleData.message || 'Settlement failed', 'error');
         }
       } catch (err) {
-        showToast(`Error: ${err.message}`, 'danger');
+        showToast(`Settlement error: ${err.message}`, 'error');
       } finally {
         btnConfirmPaymentAndOrder.disabled = false;
+        renderCart();
       }
       return;
     }
 
-    // Case 2: No active order and empty cart
+    // Case 2: New items in cart to place or append
     if (currentCart.length === 0) {
-      showToast('Please add items to cart first', 'warning');
+      showToast('Cart is empty. Tap any menu item to add.', 'warning');
       return;
     }
 
-    // Case 3: Submitting new items (either fresh table order OR appending extra items to active table)
-    try {
-      const orderType = selectedTable === 'Takeaway' ? 'TAKEAWAY' : 'DINE_IN';
-      const payload = {
-        orderType,
-        locationDetails: {
-          tableNumber: selectedTable,
-          customerName: guestNameInput.value || 'Guest'
-        },
-        items: currentCart.map(it => ({
-          menuItemId: it.menuItemId,
-          sku: it.sku,
-          title: it.title,
-          category: it.category,
-          variant: it.variant,
-          unitPrice: it.unitPrice,
-          quantity: it.quantity
-        })),
-        paymentMethod: selectedPaymentMethod,
-        paymentStatus: isPaidImmediately ? 'PAID' : 'UNPAID',
-        appendToExisting: true // Appends to running table bill if table is already active
-      };
+    const targetBtn = isPaidImmediately ? btnConfirmPaymentAndOrder : btnFireKotOnly;
+    targetBtn.disabled = true;
+    const originalText = targetBtn.textContent;
+    targetBtn.textContent = 'Submitting...';
 
+    const orderPayload = {
+      orderType: selectedTable === 'Takeaway' ? 'TAKEAWAY' : 'DINE_IN',
+      locationDetails: {
+        tableNumber: selectedTable,
+        customerName: (guestNameInput && guestNameInput.value.trim()) || 'Guest'
+      },
+      items: currentCart.map(it => ({
+        menuItemId: it.menuItemId,
+        sku: it.sku,
+        title: it.title,
+        category: it.category,
+        variant: it.variant,
+        unitPrice: it.unitPrice,
+        quantity: it.quantity
+      })),
+      paymentMethod: selectedPaymentMethod,
+      paymentStatus: isPaidImmediately ? 'PAID' : 'UNPAID'
+    };
+
+    try {
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(orderPayload)
       });
 
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.order) {
+        clearTableCart(selectedTable);
+
         if (isPaidImmediately) {
-          soundEngine.playPaymentSuccess();
-          showToast(`✅ Payment confirmed via ${selectedPaymentMethod} for ${selectedTable}! Table settled.`, 'success');
+          showToast(`Order confirmed & settled for ${selectedTable}!`, 'success');
+          if (soundEngine && soundEngine.playPaymentSuccess) soundEngine.playPaymentSuccess();
         } else {
-          soundEngine.playNewOrderChime();
-          showToast(`📋 Order saved for ${selectedTable} (${data.order.orderNumber})!`, 'success');
+          showToast(`Order ticket sent to kitchen for ${selectedTable}!`, 'success');
+          if (soundEngine && soundEngine.playNewOrderChime) soundEngine.playNewOrderChime();
         }
 
-        clearTableCart(selectedTable);
-        closeMobileCart();
-        fetchTablesOverview();
+        if (posCartPanel) posCartPanel.classList.remove('mobile-open');
+        if (cartMobileBackdrop) cartMobileBackdrop.classList.remove('open');
+        fetchTablesOverview(true);
       } else {
-        showToast(data.message || 'Order failed', 'danger');
+        showToast(data.message || 'Failed to place order', 'error');
       }
     } catch (err) {
-      showToast(`Error: ${err.message}`, 'danger');
+      showToast(`Network error: ${err.message}`, 'error');
+    } finally {
+      targetBtn.disabled = false;
+      targetBtn.textContent = originalText;
     }
   }
 
-  // 1-Tap: Confirm Payment & Settle Table
   if (btnConfirmPaymentAndOrder) {
     btnConfirmPaymentAndOrder.addEventListener('click', () => submitTableOrder(true));
   }
-
-  // Fire KOT Only (Table Tab)
   if (btnFireKotOnly) {
     btnFireKotOnly.addEventListener('click', () => submitTableOrder(false));
   }
 
-  // --- Mobile Drawer Controls for Android ---
-  const posCartPanel = document.querySelector('.pos-cart-panel');
-  const cartMobileBackdrop = document.getElementById('cartMobileBackdrop');
-  const btnOpenMobileCart = document.getElementById('btnOpenMobileCart');
-  const btnCloseMobileCart = document.getElementById('btnCloseMobileCart');
-  const tabBtnOpenCart = document.getElementById('tabBtnOpenCart');
+  // ==========================================================================
+  // 10. Floor View: Tables & Takeaways Grid
+  // ==========================================================================
+  function renderTablesFloorGrid() {
+    if (!nineTablesGrid) return;
+    nineTablesGrid.innerHTML = '';
+    let occupiedCount = 0;
 
+    tablesData.forEach(tbl => {
+      if (tbl.isOccupied) occupiedCount++;
+
+      const card = document.createElement('div');
+      card.className = `table-floor-card ${tbl.isOccupied ? 'occupied' : 'vacant'}`;
+
+      let billHtml = '₹0';
+      let itemsSummaryHtml = 'Ready for dining guests';
+      let badgeClass = 'vacant';
+      let badgeText = '🟢 Available';
+
+      if (tbl.isOccupied && tbl.order) {
+        billHtml = `₹${tbl.order.finalTotalAmount}`;
+        const itemNames = tbl.order.items.map(it => `${it.quantity}x ${it.title}`).join(', ');
+        itemsSummaryHtml = `${tbl.order.totalItemCount} items: ${itemNames}`;
+
+        const st = tbl.order.orderStatus || 'PENDING';
+        if (st === 'READY_FOR_PICKUP') {
+          badgeClass = 'ready';
+          badgeText = '🔔 Food Ready';
+        } else if (st === 'SERVED') {
+          badgeClass = 'served';
+          badgeText = '🍽️ Food Served';
+        } else {
+          badgeClass = 'occupied';
+          badgeText = '🟡 1. Ordered';
+        }
+      }
+
+      card.innerHTML = `
+        <div class="table-card-top">
+          <span class="table-card-name">${tbl.tableNumber}</span>
+          <span class="table-card-badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="table-bill-amount">${billHtml}</div>
+        <div class="table-items-preview">${itemsSummaryHtml}</div>
+      `;
+
+      card.addEventListener('click', () => {
+        selectTable(tbl.tableNumber);
+        if (tbl.isOccupied && tbl.order) {
+          openTableDetailModal(tbl.tableNumber, tbl.order);
+        } else {
+          switchMode('catalog');
+          showToast(`Selected ${tbl.tableNumber} for new order`, 'info');
+        }
+      });
+
+      nineTablesGrid.appendChild(card);
+    });
+
+    if (occupiedTablesCount) occupiedTablesCount.textContent = occupiedCount;
+    if (tablesGridOccupiedCount) tablesGridOccupiedCount.textContent = occupiedCount;
+  }
+
+  function renderTakeawaysFloorGrid() {
+    if (!takeawaysGrid) return;
+    takeawaysGrid.innerHTML = '';
+    const count = activeTakeawaysData.length;
+    if (takeawaysCount) takeawaysCount.textContent = count;
+
+    if (count === 0) {
+      takeawaysGrid.innerHTML = `
+        <div style="grid-column: 1 / -1; padding: 1.25rem; text-align: center; color: var(--color-foam); opacity: 0.75; font-size: 0.82rem; border: 1px dashed rgba(72, 202, 228, 0.3); border-radius: var(--radius-sm);">
+          🛍️ No active takeaway parcel orders right now.
+        </div>
+      `;
+      return;
+    }
+
+    activeTakeawaysData.forEach(order => {
+      const card = document.createElement('div');
+      card.className = 'table-floor-card occupied';
+      const itemNames = (order.items || []).map(it => `${it.quantity}x ${it.title}`).join(', ');
+
+      card.innerHTML = `
+        <div class="table-card-top">
+          <span class="table-card-name">🛍️ ${order.orderNumber}</span>
+          <span class="table-card-badge occupied">${order.orderStatus}</span>
+        </div>
+        <div class="table-bill-amount">₹${order.finalTotalAmount}</div>
+        <div class="table-items-preview">${order.totalItemCount} items: ${itemNames}</div>
+      `;
+
+      card.addEventListener('click', () => {
+        selectTable('Takeaway');
+        openTableDetailModal(`Takeaway: ${order.orderNumber}`, order);
+      });
+
+      takeawaysGrid.appendChild(card);
+    });
+  }
+
+  // ==========================================================================
+  // 11. Live Table Detail Modal (Lifecycle Stepper & Thermal Bill Print)
+  // ==========================================================================
+  function openTableDetailModal(tableName, order) {
+    modalActiveOrder = order;
+    modalTableTitle.textContent = `${tableName} Order Details`;
+    modalTableOrderNum.textContent = `Ticket: ${order.orderNumber} • ${new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    modalTableTotalAmount.textContent = `₹${order.finalTotalAmount}`;
+
+    updateModalStatusView(order);
+
+    modalTableItemsTbody.innerHTML = '';
+    (order.items || []).forEach(it => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight: 700; color: var(--color-gold);">${it.quantity}x</td>
+        <td><strong>${it.title}</strong>${it.variant ? ` <small>(${it.variant})</small>` : ''}</td>
+        <td style="text-align: right; color: var(--color-foam); opacity: 0.85;">₹${it.unitPrice}</td>
+        <td style="text-align: right; font-weight: 700; color: var(--color-gold);">₹${it.subtotal || (it.unitPrice * it.quantity)}</td>
+      `;
+      modalTableItemsTbody.appendChild(tr);
+    });
+
+    tableDetailModal.classList.add('open');
+  }
+
+  function updateModalStatusView(order) {
+    if (!order) return;
+    const status = order.orderStatus || 'PENDING';
+    const isPaid = order.paymentStatus === 'PAID';
+
+    [stepBoxOrdered, stepBoxReady, stepBoxServed, stepBoxPaid].forEach(box => {
+      if (box) box.className = 'step-box';
+    });
+
+    if (isPaid) {
+      if (modalStatusBadge) {
+        modalStatusBadge.textContent = '✅ 4. PAID & FREE';
+        modalStatusBadge.style.background = 'rgba(201, 168, 106, 0.25)';
+        modalStatusBadge.style.color = 'var(--color-gold)';
+      }
+      if (stepBoxPaid) stepBoxPaid.className = 'step-box active-paid';
+      if (btnAdvanceStatusAction) {
+        btnAdvanceStatusAction.style.background = '#52B788';
+        btnAdvanceStatusAction.style.color = '#06182C';
+        if (advanceActionIcon) advanceActionIcon.textContent = '✅';
+        if (advanceActionLabel) advanceActionLabel.textContent = 'Table Paid & Completed';
+        btnAdvanceStatusAction.disabled = true;
+      }
+    } else if (status === 'SERVED') {
+      if (modalStatusBadge) {
+        modalStatusBadge.textContent = '🍽️ 3. SERVED TO TABLE';
+        modalStatusBadge.style.background = 'rgba(82, 183, 136, 0.25)';
+        modalStatusBadge.style.color = '#52B788';
+      }
+      if (stepBoxServed) stepBoxServed.className = 'step-box active-served';
+      if (btnAdvanceStatusAction) {
+        btnAdvanceStatusAction.style.background = 'linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%)';
+        btnAdvanceStatusAction.style.color = '#06182C';
+        if (advanceActionIcon) advanceActionIcon.textContent = '💳';
+        if (advanceActionLabel) advanceActionLabel.textContent = `Collect Payment & Settle (₹${order.finalTotalAmount})`;
+        btnAdvanceStatusAction.disabled = false;
+        btnAdvanceStatusAction.setAttribute('data-target-action', 'settle');
+      }
+    } else if (status === 'READY_FOR_PICKUP') {
+      if (modalStatusBadge) {
+        modalStatusBadge.textContent = '🔔 2. FOOD READY';
+        modalStatusBadge.style.background = 'rgba(72, 202, 228, 0.25)';
+        modalStatusBadge.style.color = '#48CAE4';
+      }
+      if (stepBoxReady) stepBoxReady.className = 'step-box active-ready';
+      if (btnAdvanceStatusAction) {
+        btnAdvanceStatusAction.style.background = '#52B788';
+        btnAdvanceStatusAction.style.color = '#06182C';
+        if (advanceActionIcon) advanceActionIcon.textContent = '🍽️';
+        if (advanceActionLabel) advanceActionLabel.textContent = 'Confirm Food Served to Table';
+        btnAdvanceStatusAction.disabled = false;
+        btnAdvanceStatusAction.setAttribute('data-target-action', 'SERVED');
+      }
+    } else {
+      // PENDING
+      if (modalStatusBadge) {
+        modalStatusBadge.textContent = '🟡 1. ORDERED (COOKING)';
+        modalStatusBadge.style.background = 'rgba(231, 111, 81, 0.25)';
+        modalStatusBadge.style.color = '#E76F51';
+      }
+      if (stepBoxOrdered) stepBoxOrdered.className = 'step-box active-pending';
+      if (btnAdvanceStatusAction) {
+        btnAdvanceStatusAction.style.background = '#48CAE4';
+        btnAdvanceStatusAction.style.color = '#06182C';
+        if (advanceActionIcon) advanceActionIcon.textContent = '🔔';
+        if (advanceActionLabel) advanceActionLabel.textContent = 'Confirm Food is Ready';
+        btnAdvanceStatusAction.disabled = false;
+        btnAdvanceStatusAction.setAttribute('data-target-action', 'READY_FOR_PICKUP');
+      }
+    }
+  }
+
+  if (btnAdvanceStatusAction) {
+    btnAdvanceStatusAction.addEventListener('click', async () => {
+      if (!modalActiveOrder) return;
+      const targetAction = btnAdvanceStatusAction.getAttribute('data-target-action');
+      if (targetAction === 'settle') {
+        if (btnModalSettlePayment) btnModalSettlePayment.click();
+      } else if (targetAction) {
+        await advanceOrderStatus(modalActiveOrder._id || modalActiveOrder.orderNumber, targetAction);
+      }
+    });
+  }
+
+  if (btnCloseTableModal) {
+    btnCloseTableModal.addEventListener('click', () => {
+      if (tableDetailModal) tableDetailModal.classList.remove('open');
+      modalActiveOrder = null;
+    });
+  }
+
+  if (btnModalAddMoreItems) {
+    btnModalAddMoreItems.addEventListener('click', () => {
+      const targetTbl = (modalActiveOrder && modalActiveOrder.locationDetails?.tableNumber) || selectedTable;
+      selectTable(targetTbl);
+      if (tableDetailModal) tableDetailModal.classList.remove('open');
+      modalActiveOrder = null;
+      switchMode('catalog');
+      showToast(`Selected ${selectedTable}! Tap items to add to bill.`, 'info');
+    });
+  }
+
+  if (btnModalSettlePayment) {
+    btnModalSettlePayment.addEventListener('click', () => {
+      const targetTbl = (modalActiveOrder && modalActiveOrder.locationDetails?.tableNumber) || selectedTable;
+      selectTable(targetTbl);
+      if (tableDetailModal) tableDetailModal.classList.remove('open');
+      modalActiveOrder = null;
+      submitTableOrder(true);
+    });
+  }
+
+  // Thermal Receipt Printing
+  function printOrderReceipt(order, tableName) {
+    if (!order || !printableBillReceipt) return;
+    const dateStr = new Date(order.createdAt || Date.now()).toLocaleString();
+    let rowsHtml = '';
+    (order.items || []).forEach(it => {
+      rowsHtml += `
+        <tr>
+          <td>${it.quantity}x</td>
+          <td>${it.title}${it.variant ? ` (${it.variant})` : ''}</td>
+          <td style="text-align: right;">₹${it.unitPrice}</td>
+          <td style="text-align: right;">₹${it.subtotal || (it.unitPrice * it.quantity)}</td>
+        </tr>
+      `;
+    });
+
+    printableBillReceipt.innerHTML = `
+      <div style="font-family: monospace; font-size: 12px; width: 280px; padding: 10px; color: #000; background: #FFF;">
+        <div style="text-align: center; font-weight: bold; font-size: 14px;">⚓ ANCHOR CAFE ⚓</div>
+        <div style="text-align: center; font-size: 10px;">Ramapuram Beach, Chirala (A.P.)</div>
+        <div style="text-align: center; margin-top: 5px; font-weight: bold;">${tableName || order.locationDetails?.tableNumber || 'Beach Order'}</div>
+        <div style="font-size: 10px; margin-top: 5px;">Order: ${order.orderNumber}</div>
+        <div style="font-size: 10px;">Date: ${dateStr}</div>
+        <hr style="border-top: 1px dashed #000; margin: 8px 0;">
+        <table style="width: 100%; font-size: 11px;">
+          ${rowsHtml}
+        </table>
+        <hr style="border-top: 1px dashed #000; margin: 8px 0;">
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
+          <span>TOTAL:</span>
+          <span>₹${order.finalTotalAmount}</span>
+        </div>
+        <div style="text-align: center; margin-top: 10px; font-size: 10px;">Thank you! Visit again! 🌊</div>
+      </div>
+    `;
+
+    window.print();
+  }
+
+  if (btnModalPrintBill) {
+    btnModalPrintBill.addEventListener('click', () => {
+      if (modalActiveOrder) {
+        printOrderReceipt(modalActiveOrder, modalActiveOrder.locationDetails?.tableNumber);
+      }
+    });
+  }
+
+  // ==========================================================================
+  // 12. Mobile Cart Drawer Open & Close
+  // ==========================================================================
   function openMobileCart() {
     if (posCartPanel) posCartPanel.classList.add('mobile-open');
     if (cartMobileBackdrop) cartMobileBackdrop.classList.add('open');
+    renderCart();
   }
 
   function closeMobileCart() {
@@ -1964,556 +1194,51 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnOpenMobileCart) btnOpenMobileCart.addEventListener('click', openMobileCart);
-  if (tabBtnOpenCart) tabBtnOpenCart.addEventListener('click', openMobileCart);
+  if (btnMobileReviewAction) btnMobileReviewAction.addEventListener('click', openMobileCart);
   if (btnCloseMobileCart) btnCloseMobileCart.addEventListener('click', closeMobileCart);
   if (cartMobileBackdrop) cartMobileBackdrop.addEventListener('click', closeMobileCart);
 
   // ==========================================================================
-  // 🪑 Native Mobile Table Selector (Scroll-Up Bottom Sheet Drawer)
+  // 13. Toast Notification Utility (Clean & Non-Intrusive)
   // ==========================================================================
-  const mobileTableBottomSheet = document.getElementById('mobileTableBottomSheet');
-  const tableSheetBackdrop = document.getElementById('tableSheetBackdrop');
-  const btnCloseTableBottomSheet = document.getElementById('btnCloseTableBottomSheet');
-  const btnOpenTableBottomSheet = document.getElementById('btnOpenTableBottomSheet');
-  const btnOpenTableSheetTop = document.getElementById('btnOpenTableSheetTop');
-  const tableSheetGrid = document.getElementById('tableSheetGrid');
-  const sheetActiveTableText = document.getElementById('sheetActiveTableText');
-  const sheetActiveTableState = document.getElementById('sheetActiveTableState');
-  const btnToggleGridView = document.getElementById('btnToggleGridView');
-  const gridToggleIcon = document.getElementById('gridToggleIcon');
-  const gridToggleText = document.getElementById('gridToggleText');
-
-  function openTableBottomSheet() {
-    if (!mobileTableBottomSheet) return;
-    renderTableBottomSheet();
-    mobileTableBottomSheet.classList.add('open');
-    if (tableSheetBackdrop) tableSheetBackdrop.classList.add('open');
-    soundEngine.playChime();
-  }
-
-  function closeTableBottomSheet() {
-    if (mobileTableBottomSheet) mobileTableBottomSheet.classList.remove('open');
-    if (tableSheetBackdrop) tableSheetBackdrop.classList.remove('open');
-  }
-
-  if (btnOpenTableBottomSheet) btnOpenTableBottomSheet.addEventListener('click', openTableBottomSheet);
-  if (btnOpenTableSheetTop) btnOpenTableSheetTop.addEventListener('click', openTableBottomSheet);
-  if (btnCloseTableBottomSheet) btnCloseTableBottomSheet.addEventListener('click', closeTableBottomSheet);
-  if (tableSheetBackdrop) tableSheetBackdrop.addEventListener('click', closeTableBottomSheet);
-
-  // Delegated click listener on tableSheetGrid (attached once)
-  if (tableSheetGrid) {
-    tableSheetGrid.addEventListener('click', (e) => {
-      const viewBtn = e.target.closest('[data-action="view"]');
-      if (viewBtn) {
-        e.stopPropagation();
-        const tName = viewBtn.getAttribute('data-table');
-        const matched = tablesData.find(t => t.tableNumber === tName);
-        if (matched && matched.isOccupied && matched.order) {
-          selectTable(tName);
-          closeTableBottomSheet();
-          openTableDetailModal(tName, matched.order);
-        }
-        return;
-      }
-
-      const addBtn = e.target.closest('[data-action="add"]');
-      if (addBtn) {
-        e.stopPropagation();
-        const tName = addBtn.getAttribute('data-table');
-        selectTable(tName);
-        closeTableBottomSheet();
-        switchView('catalog');
-        showToast(`Selected ${tName}. Tap any item to add to bill!`, 'info');
-        return;
-      }
-
-      const card = e.target.closest('.table-sheet-card');
-      if (card) {
-        const tName = card.getAttribute('data-table');
-        if (tName) {
-          selectTable(tName);
-          const matched = tablesData.find(t => t.tableNumber === tName);
-          closeTableBottomSheet();
-          if (matched && matched.isOccupied && matched.order) {
-            openTableDetailModal(tName, matched.order);
-          } else {
-            showToast(`🪑 Order Allotted to ${tName}! Tap any item to add.`, 'success');
-            soundEngine.playChime();
-          }
-        }
-      }
-    });
-  }
-
-  // Render cards in the scroll-up table bottom sheet (Batched with DocumentFragment)
-  function renderTableBottomSheet() {
-    if (!tableSheetGrid) return;
-    tableSheetGrid.innerHTML = '';
-
-    if (sheetActiveTableText) sheetActiveTableText.textContent = selectedTable;
-    if (sheetActiveTableState) {
-      const activeOrder = getActiveOrderForSelectedTable();
-      if (activeOrder) {
-        sheetActiveTableState.textContent = `Running Bill: ₹${activeOrder.finalTotalAmount} (${activeOrder.totalItemCount} items)`;
-      } else {
-        const draft = tableCarts[selectedTable] || [];
-        if (draft.length > 0) {
-          let draftQty = 0;
-          draft.forEach(d => { draftQty += d.quantity; });
-          sheetActiveTableState.textContent = `Draft: ${draftQty} items added in cart`;
-        } else {
-          sheetActiveTableState.textContent = 'Vacant Table (Ready for New Guests)';
-        }
-      }
-    }
-
-    const fragment = document.createDocumentFragment();
-
-    for (let i = 1; i <= currentTotalTables; i++) {
-      const tName = `Table ${i}`;
-      const matched = tablesData.find(t => t.tableNumber === tName);
-      const isOcc = matched && matched.isOccupied;
-      const isSelected = selectedTable === tName;
-      const draft = tableCarts[tName] || [];
-
-      const card = document.createElement('div');
-      card.className = `table-sheet-card ${isSelected ? 'active-allotted' : ''} ${isOcc ? 'occupied' : ''}`;
-      card.setAttribute('data-table', tName);
-
-      let statusBadge = '<span class="tsc-badge free">🟢 Available</span>';
-      let infoText = 'Table is free. Tap to allot new customer order.';
-      let bottomActionsHtml = '';
-
-      if (isOcc && matched.order) {
-        const o = matched.order;
-        const st = o.orderStatus || 'PENDING';
-        let stClass = 'pending';
-        let stLabel = '🟡 1. Ordered';
-        if (st === 'READY_FOR_PICKUP') {
-          stClass = 'ready';
-          stLabel = '🔔 2. Food Ready';
-        } else if (st === 'SERVED') {
-          stClass = 'served';
-          stLabel = '🍽️ 3. Served';
-        }
-        statusBadge = `<span class="tsc-badge ${stClass}">${stLabel}</span>`;
-        const itemNames = (o.items || []).map(it => `${it.quantity}x ${it.title}`).join(', ');
-        infoText = `
-          <div style="font-weight: 700; color: var(--color-sand); font-size: 0.85rem; margin-bottom: 0.2rem;">
-            👤 ${o.locationDetails?.customerName || 'Guest'} &bull; <span class="tsc-bill">₹${o.finalTotalAmount}</span>
-          </div>
-          <div style="font-size: 0.73rem; color: var(--color-foam); opacity: 0.88; max-height: 2.2em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-            ${itemNames}
-          </div>
-        `;
-        bottomActionsHtml = `
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.45rem;">
-            <button class="tsc-action-btn" data-action="view" data-table="${tName}" type="button" style="background: rgba(72, 202, 228, 0.2); border: 1px solid #48CAE4; color: #48CAE4; font-weight: 700; padding: 0.35rem 0.2rem;">
-              📋 Check Status
-            </button>
-            <button class="tsc-action-btn" data-action="add" data-table="${tName}" type="button" style="background: rgba(82, 183, 136, 0.2); border: 1px solid #52B788; color: #52B788; font-weight: 700; padding: 0.35rem 0.2rem;">
-              ➕ Add Items
-            </button>
-          </div>
-        `;
-      } else if (draft.length > 0) {
-        let draftQty = 0;
-        let draftAmt = 0;
-        draft.forEach(d => { draftQty += d.quantity; draftAmt += d.unitPrice * d.quantity; });
-        statusBadge = '<span class="tsc-badge" style="background: rgba(201,168,106,0.25); color: var(--color-gold); border: 1px solid var(--color-gold);">🟡 Draft Cart</span>';
-        infoText = `<span style="color: var(--color-gold); font-weight: 700;">${draftQty} items</span> in cart (₹${draftAmt})`;
-        const actionBtnText = isSelected ? '✓ Currently Allotted' : 'Resume ' + tName;
-        bottomActionsHtml = `
-          <button class="tsc-action-btn selected" type="button">
-            ${isSelected ? `✓ Allotted to ${tName}` : actionBtnText}
-          </button>
-        `;
-      } else {
-        bottomActionsHtml = `
-          <button class="tsc-action-btn allot" type="button">
-            ${isSelected ? `✓ Allotted to ${tName}` : 'Allot to ' + tName}
-          </button>
-        `;
-      }
-
-      if (isSelected) {
-        statusBadge += ' <span class="tsc-badge selected">✓ SELECTED</span>';
-      }
-
-      card.innerHTML = `
-        <div class="tsc-top">
-          <span class="tsc-name">🪑 ${tName}</span>
-          <div style="display: flex; gap: 0.25rem; align-items: center;">${statusBadge}</div>
-        </div>
-        <div class="tsc-info">${infoText}</div>
-        ${bottomActionsHtml}
-      `;
-
-      fragment.appendChild(card);
-    }
-
-    // Add Takeaway card to sheet
-    const isTkSelected = selectedTable === 'Takeaway';
-    const tkCount = activeTakeawaysData.length;
-    const tkCard = document.createElement('div');
-    tkCard.className = `table-sheet-card ${isTkSelected ? 'active-allotted' : ''} ${tkCount > 0 ? 'occupied' : ''}`;
-    tkCard.setAttribute('data-table', 'Takeaway');
-    tkCard.innerHTML = `
-      <div class="tsc-top">
-        <span class="tsc-name" style="color: #48CAE4;">🛍️ Takeaway</span>
-        <span class="tsc-badge ${tkCount > 0 ? 'dining' : 'free'}">${tkCount > 0 ? `${tkCount} In Progress` : 'Walk-in Parcel'}</span>
-      </div>
-      <div class="tsc-info">Parcel / Beach stroll orders without a seated table.</div>
-      <button class="tsc-action-btn ${isTkSelected ? 'selected' : 'allot'}" type="button">
-        ${isTkSelected ? '✓ Selected Takeaway' : 'Allot to Takeaway'}
-      </button>
-    `;
-    fragment.appendChild(tkCard);
-
-    tableSheetGrid.appendChild(fragment);
-  }
-
-  // Toggle between Grid View and Compact List View on Mobile
-  if (btnToggleGridView) {
-    btnToggleGridView.addEventListener('click', () => {
-      if (!itemsGrid) return;
-      const isList = itemsGrid.classList.toggle('list-view');
-      if (gridToggleIcon) gridToggleIcon.textContent = isList ? '📱' : '📋';
-      if (gridToggleText) gridToggleText.textContent = isList ? 'Grid' : 'List';
-      showToast(isList ? 'Switched to Compact List View' : 'Switched to Grid View', 'info');
-    });
-  }
-
-  // --- Link / Merge Tables Modal (Party of 40 on Multiple Tables) ---
-  const linkTablesModal = document.getElementById('linkTablesModal');
-  const btnOpenLinkTablesModal = document.getElementById('btnOpenLinkTablesModal');
-  const btnCloseLinkTablesModal = document.getElementById('btnCloseLinkTablesModal');
-  const btnCancelLinkTables = document.getElementById('btnCancelLinkTables');
-  const selectPrimaryTable = document.getElementById('selectPrimaryTable');
-  const secondaryTablesCheckboxes = document.getElementById('secondaryTablesCheckboxes');
-  const btnConfirmMergeTables = document.getElementById('btnConfirmMergeTables');
-
-  function openLinkTablesModal() {
-    if (!linkTablesModal) return;
-    populateLinkTablesForm();
-    linkTablesModal.classList.add('open');
-  }
-
-  function closeLinkTablesModal() {
-    if (linkTablesModal) linkTablesModal.classList.remove('open');
-  }
-
-  function populateLinkTablesForm() {
-    if (!selectPrimaryTable || !secondaryTablesCheckboxes) return;
-
-    // Find all occupied/active tables from tablesData
-    const occupiedTables = (tablesData || []).filter(t => t.isOccupied && t.order);
-
-    if (occupiedTables.length < 2) {
-      selectPrimaryTable.innerHTML = `<option value="">No multiple active tables to merge</option>`;
-      secondaryTablesCheckboxes.innerHTML = `
-        <div style="grid-column: 1 / -1; color: var(--color-foam); opacity: 0.8; font-size: 0.8rem; text-align: center; padding: 0.5rem;">
-          At least 2 active tables with orders are required to merge.
-        </div>
-      `;
-      if (btnConfirmMergeTables) btnConfirmMergeTables.disabled = true;
-      return;
-    }
-
-    if (btnConfirmMergeTables) btnConfirmMergeTables.disabled = false;
-
-    // Populate Primary Table dropdown
-    selectPrimaryTable.innerHTML = occupiedTables.map(t => `
-      <option value="${t.tableNumber}" ${t.tableNumber === selectedTable ? 'selected' : ''}>
-        ${t.tableNumber} (Bill: ₹${t.order.finalTotalAmount || t.order.subtotalAmount || 0})
-      </option>
-    `).join('');
-
-    renderSecondaryCheckboxes();
-
-    selectPrimaryTable.onchange = () => {
-      renderSecondaryCheckboxes();
-    };
-  }
-
-  function renderSecondaryCheckboxes() {
-    const primary = selectPrimaryTable.value;
-    const occupiedTables = (tablesData || []).filter(t => t.isOccupied && t.order && t.tableNumber !== primary);
-
-    if (occupiedTables.length === 0) {
-      secondaryTablesCheckboxes.innerHTML = `<div style="grid-column: 1 / -1; color: var(--color-foam); font-size: 0.8rem;">No other active tables found.</div>`;
-      return;
-    }
-
-    secondaryTablesCheckboxes.innerHTML = occupiedTables.map(t => `
-      <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--color-sand); cursor: pointer; background: rgba(255,255,255,0.05); padding: 0.4rem; border-radius: 4px;">
-        <input type="checkbox" name="secondaryTable" value="${t.tableNumber}" style="cursor: pointer;" />
-        <span><strong>${t.tableNumber}</strong> (₹${t.order.finalTotalAmount || 0})</span>
-      </label>
-    `).join('');
-  }
-
-  if (btnOpenLinkTablesModal) btnOpenLinkTablesModal.addEventListener('click', openLinkTablesModal);
-  if (btnCloseLinkTablesModal) btnCloseLinkTablesModal.addEventListener('click', closeLinkTablesModal);
-  if (btnCancelLinkTables) btnCancelLinkTables.addEventListener('click', closeLinkTablesModal);
-  if (linkTablesModal) {
-    linkTablesModal.addEventListener('click', (e) => {
-      if (e.target === linkTablesModal) closeLinkTablesModal();
-    });
-  }
-
-  if (btnConfirmMergeTables) {
-    btnConfirmMergeTables.addEventListener('click', async () => {
-      const primaryTable = selectPrimaryTable.value;
-      const checkedBoxes = Array.from(document.querySelectorAll('input[name="secondaryTable"]:checked'));
-      const secondaryTables = checkedBoxes.map(cb => cb.value);
-
-      if (!primaryTable) {
-        showToast('Please select a primary table', 'warning');
-        return;
-      }
-      if (secondaryTables.length === 0) {
-        showToast('Please select at least one secondary table to merge', 'warning');
-        return;
-      }
-
-      try {
-        btnConfirmMergeTables.disabled = true;
-        btnConfirmMergeTables.textContent = 'Merging...';
-
-        const res = await fetch('/api/orders/tables/merge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ primaryTable, secondaryTables })
-        });
-
-        const data = await res.json();
-        if (data.success) {
-          soundEngine.playNewOrderChime();
-          showToast(`✅ ${data.message}`, 'success');
-          // Clear any local draft carts of merged secondary tables
-          secondaryTables.forEach(t => clearTableCart(t));
-          closeLinkTablesModal();
-          // Select primary table so cashier sees merged bill
-          selectTable(primaryTable);
-          fetchTablesOverview();
-        } else {
-          showToast(data.message || 'Error merging tables', 'danger');
-        }
-      } catch (err) {
-        showToast(`Error: ${err.message}`, 'danger');
-      } finally {
-        btnConfirmMergeTables.disabled = false;
-        btnConfirmMergeTables.textContent = '🔀 Merge Tables into One Bill';
-      }
-    });
-  }
-
-  // --- ⚡ 1-Tap Speed Bar (Beach Bestsellers Quick Add) ---
-  if (speedBarScroll) {
-    speedBarScroll.addEventListener('click', (e) => {
-      const btn = e.target.closest('.speed-btn');
-      if (!btn) return;
-
-      const sku = btn.getAttribute('data-sku');
-      const title = btn.getAttribute('data-title');
-      const price = Number(btn.getAttribute('data-price')) || 0;
-
-      // Match item in catalog if already loaded
-      const matchedItem = menuCatalog.find(m => m.sku === sku || m.title.toLowerCase() === title.toLowerCase());
-
-      const itemToAdd = {
-        menuItemId: matchedItem ? matchedItem._id : undefined,
-        sku: matchedItem ? matchedItem.sku : sku,
-        title: matchedItem ? matchedItem.title : title,
-        category: matchedItem ? matchedItem.category : 'soft-drinks',
-        variant: null,
-        unitPrice: matchedItem ? matchedItem.sellingPrice : price
-      };
-
-      addToCart(itemToAdd);
-      if (soundEngine && soundEngine.playItemAdd) soundEngine.playItemAdd();
-    });
-  }
-
-  // --- 📊 Table-Wise Order Tracking & Performance (Daily & Monthly) ---
-  let currentTableTrackPeriod = 'today';
-  let currentTableTrackDate = '';
-
-  async function fetchTablePerformance(period = 'today', dateStr = '') {
-    if (!tblTrackTableBody) return;
-    tblTrackTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 1.5rem; color: var(--color-foam);">Loading table performance data...</td></tr>`;
-
-    try {
-      let url = `/api/orders/tables/performance?period=${period}`;
-      if (dateStr) {
-        url += `&date=${encodeURIComponent(dateStr)}`;
-      }
-
-      const res = await fetch(url);
-      const data = await res.json();
-      if (!data.success) {
-        tblTrackTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #E63946; padding: 1rem;">${data.message || 'Error loading table performance'}</td></tr>`;
-        return;
-      }
-
-      const grandRev = data.grandTotalRevenue !== undefined ? data.grandTotalRevenue : (data.summary?.totalRevenue || 0);
-      const grandOrders = data.grandTotalOrders !== undefined ? data.grandTotalOrders : (data.summary?.totalOrders || 0);
-      const tables = data.tables || [];
-      const activeTablesCount = tablesData.filter(t => t.isOccupied).length;
-
-      if (tblTrackGrandRevenue) tblTrackGrandRevenue.textContent = `₹${grandRev.toLocaleString('en-IN')}`;
-      if (tblTrackGrandOrders) tblTrackGrandOrders.textContent = `${grandOrders}`;
-      if (tblTrackActiveTablesNow) tblTrackActiveTablesNow.textContent = `${activeTablesCount}`;
-
-      if (tables.length === 0) {
-        tblTrackTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 1.5rem; color: var(--color-sand-muted);">No orders recorded for this period yet.</td></tr>`;
-        return;
-      }
-
-      let tbodyHtml = '';
-      tables.forEach(row => {
-        const tName = row.tableName || row.tableNumber;
-        const ordCount = row.orderCount !== undefined ? row.orderCount : (row.totalOrders || 0);
-        const revenue = row.totalRevenue || 0;
-        const avgBill = row.averageBill !== undefined ? row.averageBill : (row.avgOrderValue || 0);
-        const paidCount = row.paidOrders || 0;
-        const unpaidCount = row.unpaidOrders || 0;
-
-        // Check live floor occupancy from tablesData
-        const liveMatch = tablesData.find(t => t.tableNumber === tName);
-        const isOccupied = liveMatch ? liveMatch.isOccupied : row.isOccupied;
-        const activeBill = liveMatch && liveMatch.order ? liveMatch.order.finalTotalAmount : (row.activeBillAmount || 0);
-
-        const statusBadge = isOccupied 
-          ? `<span style="background: rgba(230,57,70,0.2); color: #FFB4A2; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">🔴 Occupied (₹${activeBill})</span>`
-          : `<span style="background: rgba(82,183,136,0.2); color: #74C69D; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700;">🟢 Available</span>`;
-
-        tbodyHtml += `
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); transition: background 0.2s;" onmouseover="this.style.background='rgba(201,168,106,0.08)'" onmouseout="this.style.background='transparent'">
-            <td style="padding: 0.6rem 0.5rem; font-weight: 700; color: var(--color-gold);">
-              ${tName}
-            </td>
-            <td style="padding: 0.6rem 0.5rem; text-align: center; font-weight: 700;">
-              ${ordCount}
-            </td>
-            <td style="padding: 0.6rem 0.5rem; text-align: right; font-weight: 800; color: #52B788;">
-              ₹${revenue.toLocaleString('en-IN')}
-            </td>
-            <td style="padding: 0.6rem 0.5rem; text-align: right; color: var(--color-foam); opacity: 0.9;">
-              ₹${avgBill.toLocaleString('en-IN')}
-            </td>
-            <td style="padding: 0.6rem 0.5rem; text-align: center; font-size: 0.75rem;">
-              <span style="color: #52B788; font-weight: 700;">${paidCount} Paid</span>
-              ${unpaidCount > 0 ? ` / <span style="color: #E63946; font-weight: 700;">${unpaidCount} Active</span>` : ''}
-            </td>
-            <td style="padding: 0.6rem 0.5rem; text-align: center; font-size: 0.75rem;">
-              ${statusBadge}
-            </td>
-          </tr>
-        `;
-      });
-
-      tblTrackTableBody.innerHTML = tbodyHtml;
-    } catch (err) {
-      tblTrackTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #E63946; padding: 1rem;">Failed to load data: ${err.message}</td></tr>`;
-    }
-  }
-
-  // Table Tracking Modal Event Listeners
-  if (btnOpenTableTrackingModal) {
-    btnOpenTableTrackingModal.addEventListener('click', () => {
-      if (tableTrackingModal) tableTrackingModal.classList.add('open');
-      setTableTrackPeriodActive(btnTblTrackToday, 'today');
-    });
-  }
-
-  function closeTableTrackingModal() {
-    if (tableTrackingModal) tableTrackingModal.classList.remove('open');
-  }
-
-  if (btnCloseTableTrackingModal) btnCloseTableTrackingModal.addEventListener('click', closeTableTrackingModal);
-  if (btnCloseTableTrackingModalBtn) btnCloseTableTrackingModalBtn.addEventListener('click', closeTableTrackingModal);
-  if (tableTrackingModal) {
-    tableTrackingModal.addEventListener('click', (e) => {
-      if (e.target === tableTrackingModal) closeTableTrackingModal();
-    });
-  }
-
-  function setTableTrackPeriodActive(activeBtn, period) {
-    [btnTblTrackToday, btnTblTrackYesterday, btnTblTrackMonth].forEach(b => {
-      if (b) b.classList.remove('active');
-    });
-    if (activeBtn) activeBtn.classList.add('active');
-    currentTableTrackPeriod = period;
-    currentTableTrackDate = '';
-    if (inputTblTrackDate) inputTblTrackDate.value = '';
-    fetchTablePerformance(period);
-  }
-
-  if (btnTblTrackToday) {
-    btnTblTrackToday.addEventListener('click', () => setTableTrackPeriodActive(btnTblTrackToday, 'today'));
-  }
-  if (btnTblTrackYesterday) {
-    btnTblTrackYesterday.addEventListener('click', () => setTableTrackPeriodActive(btnTblTrackYesterday, 'yesterday'));
-  }
-  if (btnTblTrackMonth) {
-    btnTblTrackMonth.addEventListener('click', () => setTableTrackPeriodActive(btnTblTrackMonth, 'month'));
-  }
-  if (inputTblTrackDate) {
-    inputTblTrackDate.addEventListener('change', () => {
-      const val = inputTblTrackDate.value;
-      if (val) {
-        [btnTblTrackToday, btnTblTrackYesterday, btnTblTrackMonth].forEach(b => {
-          if (b) b.classList.remove('active');
-        });
-        currentTableTrackPeriod = 'custom';
-        currentTableTrackDate = val;
-        fetchTablePerformance('custom', val);
-      }
-    });
-  }
-
-  // --- Toast Notifications ---
   function showToast(message, type = 'info') {
-    const toastContainer = document.getElementById('toastContainer');
-    if (!toastContainer) return;
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toastContainer';
+      container.style.cssText = 'position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.4rem; pointer-events: none;';
+      document.body.appendChild(container);
+    }
+
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `<span>${message}</span>`;
-    toastContainer.appendChild(toast);
+    const bg = type === 'success' ? '#2A9D8F' : (type === 'error' ? '#E63946' : '#1D4E89');
+    toast.style.cssText = `background: ${bg}; color: #FFF; padding: 0.5rem 0.85rem; border-radius: 6px; font-size: 0.82rem; font-weight: 700; box-shadow: 0 4px 15px rgba(0,0,0,0.4); pointer-events: auto;`;
+    toast.textContent = message;
+
+    container.appendChild(toast);
     setTimeout(() => {
-      toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 300);
-    }, 3500);
+      toast.remove();
+    }, 2400);
   }
 
-  // Socket.IO events for live table & expense updates
-  if (socket) {
-    socket.on('order:created', () => { fetchTablesOverview(true); fetchExpenseSummary(); });
-    socket.on('payment:recorded', () => { fetchTablesOverview(true); fetchExpenseSummary(); });
-    socket.on('kot:status_change', () => fetchTablesOverview(true));
-    socket.on('tables:count_updated', () => fetchTablesOverview(true));
-    socket.on('expense:recorded', () => { fetchExpenseSummary(); fetchExpensesList(currentExpenseFilter); });
-    socket.on('expense:deleted', () => { fetchExpenseSummary(); fetchExpensesList(currentExpenseFilter); });
-    socket.on('menu:price_updated', ({ item }) => {
-      const idx = menuCatalog.findIndex(m => m._id === item._id);
-      if (idx !== -1) {
-        menuCatalog[idx] = item;
-        renderItems();
-      }
-    });
+  // ==========================================================================
+  // 14. Realtime Socket.IO Listeners
+  // ==========================================================================
+  if (typeof io !== 'undefined') {
+    try {
+      const socket = io();
+      socket.on('order:created', () => fetchTablesOverview(true));
+      socket.on('kot:status_change', () => fetchTablesOverview(true));
+      socket.on('payment:recorded', () => fetchTablesOverview(true));
+    } catch (e) {}
   }
 
-  // Initial loads with safety wrapping
-  try { fetchMenuCatalog(); } catch (e) { console.error('Menu load failed:', e); }
-  try { fetchTablesOverview(true); } catch (e) { console.error('Tables load failed:', e); }
-  try { fetchExpenseSummary(); } catch (e) { console.error('Expenses load failed:', e); }
+  // Initial Load
+  fetchMenuCatalog();
+  fetchTablesOverview(true);
 
-  // Background fallback poll (uses fingerprinting so no re-renders unless data changed)
+  // Fallback poll every 25 seconds
   setInterval(() => {
-    try { fetchTablesOverview(false); } catch (e) {}
-    try { fetchExpenseSummary(); } catch (e) {}
+    fetchTablesOverview(false);
   }, 25000);
 });
