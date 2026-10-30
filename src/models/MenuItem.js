@@ -14,6 +14,10 @@ const VariantSchema = new mongoose.Schema({
   sellingPrice: { 
     type: Number, 
     required: true 
+  },
+  weekendPrice: {
+    type: Number,
+    default: null
   }
 }, { _id: false });
 
@@ -48,6 +52,14 @@ const MenuItemSchema = new mongoose.Schema({
     type: Number, 
     required: true, 
     min: 0 
+  },
+  weekendPrice: {
+    type: Number,
+    default: null  // null = no special weekend price; set a value to override on weekends
+  },
+  isWeekendPriceActive: {
+    type: Boolean,
+    default: false  // manual toggle: true = use weekendPrice instead of sellingPrice on Sat/Sun
   },
   hasVariants: { 
     type: Boolean, 

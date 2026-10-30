@@ -145,11 +145,12 @@ async function reseedMenu(req, res) {
 
 /**
  * Update price/cost for any menu item (soft drinks, water bottles, snacks, shakes)
+ * Supports: sellingPrice, baseCost, weekendPrice, isWeekendPriceActive
  */
 async function updateItemPrice(req, res) {
   try {
     const { id } = req.params;
-    const { sellingPrice, baseCost, variants } = req.body;
+    const { sellingPrice, baseCost, weekendPrice, isWeekendPriceActive, variants } = req.body;
 
     const item = await MenuItem.findById(id);
     if (!item) {
@@ -158,8 +159,17 @@ async function updateItemPrice(req, res) {
 
     if (sellingPrice !== undefined && sellingPrice !== null) {
       item.sellingPrice = Number(sellingPrice);
-      item.baseCost = baseCost !== undefined ? Number(baseCost) : Number(sellingPrice);
-      item.isMrp = true; // Mark as custom price
+      item.baseCost = baseCost !== undefined ? Number(baseCost) : item.baseCost;
+      item.isMrp = true; // Mark as custom price — skip auto charm pricing
+    } else if (baseCost !== undefined) {
+      item.baseCost = Number(baseCost);
+    }
+
+    if (weekendPrice !== undefined) {
+      item.weekendPrice = weekendPrice === null || weekendPrice === '' ? null : Number(weekendPrice);
+    }
+    if (isWeekendPriceActive !== undefined) {
+      item.isWeekendPriceActive = Boolean(isWeekendPriceActive);
     }
 
     if (variants && Array.isArray(variants) && item.hasVariants) {
@@ -169,6 +179,7 @@ async function updateItemPrice(req, res) {
         if (found) {
           if (v.sellingPrice !== undefined) found.sellingPrice = Number(v.sellingPrice);
           if (v.baseCost !== undefined) found.baseCost = Number(v.baseCost);
+          if (v.weekendPrice !== undefined) found.weekendPrice = v.weekendPrice === null ? null : Number(v.weekendPrice);
         }
       });
     }
@@ -190,7 +201,7 @@ async function updateItemPrice(req, res) {
 
     res.json({
       success: true,
-      message: `Price for "${updated.title}" successfully updated to ₹${updated.sellingPrice}!`,
+      message: `Price for "${updated.title}" successfully updated to ₹${updated.sellingPrice}${updated.weekendPrice ? ` (Weekend: ₹${updated.weekendPrice})` : ''}!`,
       item: updated
     });
   } catch (error) {

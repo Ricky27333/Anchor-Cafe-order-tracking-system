@@ -121,6 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const advanceActionLabel = document.getElementById('advanceActionLabel');
   const modalStatusBadge = document.getElementById('modalStatusBadge');
   const stepBoxOrdered = document.getElementById('stepBoxOrdered');
+  const stepBoxMaking = document.getElementById('stepBoxMaking');
   const stepBoxReady = document.getElementById('stepBoxReady');
   const stepBoxServed = document.getElementById('stepBoxServed');
   const stepBoxPaid = document.getElementById('stepBoxPaid');
@@ -266,8 +267,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const st = activeOrder.orderStatus || 'PENDING';
         let stIcon = '🟡';
         let stText = '1. Ordered';
-        if (st === 'READY_FOR_PICKUP') { stIcon = '🔔'; stText = '2. Ready'; }
-        else if (st === 'SERVED') { stIcon = '🍽️'; stText = '3. Served'; }
+        if (st === 'KITCHEN_PREPARING' || st === 'ACCEPTED') { stIcon = '🔥'; stText = '2. Making'; }
+        else if (st === 'READY_FOR_PICKUP') { stIcon = '🔔'; stText = '3. Ready'; }
+        else if (st === 'SERVED') { stIcon = '🍽️'; stText = '4. Served'; }
         btnTopCheckStatus.innerHTML = `📋 ${stIcon} ${stText}`;
         btnTopCheckStatus.style.display = 'inline-block';
       } else {
@@ -374,7 +376,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <p class="card-desc">${item.servingSize ? `${item.servingSize} &bull; ` : ''}${item.description || ''}</p>
         </div>
         <div class="card-bottom">
-          <span class="card-price">₹${item.sellingPrice}</span>
+          <span class="card-price-wrap" data-item-id="${item._id}" data-item-title="${item.title}" data-current-price="${item.sellingPrice}" title="Tap price to increase / decrease">
+            <span class="card-price">₹${item.sellingPrice}</span>
+            <span class="card-price-edit-icon" title="Edit price">✏️</span>
+          </span>
           <button class="btn-add-item" type="button" aria-label="Add ${item.title}">
             ${item.hasVariants ? '⚡ Options' : '➕ Add'}
           </button>
@@ -387,9 +392,161 @@ document.addEventListener('DOMContentLoaded', () => {
     itemsGrid.appendChild(fragment);
   }
 
+  // ==========================================================================
+  // 7b. Simple Price Editor (Increase / Decrease Stepper)
+  // ==========================================================================
+  let priceEditorPopup = null;
+  let priceEditorBackdrop = null;
+
+  function closePriceEditor() {
+    if (priceEditorPopup) { priceEditorPopup.remove(); priceEditorPopup = null; }
+    if (priceEditorBackdrop) { priceEditorBackdrop.remove(); priceEditorBackdrop = null; }
+  }
+
+  function openPriceEditor(itemId, itemTitle, currentPrice, anchorEl) {
+    closePriceEditor();
+
+    // Backdrop
+    priceEditorBackdrop = document.createElement('div');
+    priceEditorBackdrop.className = 'price-editor-backdrop';
+    priceEditorBackdrop.addEventListener('click', closePriceEditor);
+    document.body.appendChild(priceEditorBackdrop);
+
+    // Popup
+    priceEditorPopup = document.createElement('div');
+    priceEditorPopup.className = 'price-editor-popup';
+
+    priceEditorPopup.innerHTML = `
+      <div class="price-editor-title">✏️ ${itemTitle}</div>
+      <div class="price-editor-subtitle">Adjust item price using - / + or quick buttons</div>
+
+      <div class="price-stepper-box">
+        <button type="button" class="btn-step-change" id="btnStepMinus" title="Decrease price by 5">−</button>
+        <div class="price-stepper-display">
+          <span class="price-currency-sym">₹</span>
+          <input class="price-stepper-input" id="pePriceInput" type="number" min="1" step="1" value="${currentPrice}" inputmode="numeric">
+        </div>
+        <button type="button" class="btn-step-change" id="btnStepPlus" title="Increase price by 5">+</button>
+      </div>
+
+      <div class="price-quick-chips">
+        <button type="button" class="chip-step-btn" data-delta="-10">−₹10</button>
+        <button type="button" class="chip-step-btn" data-delta="-5">−₹5</button>
+        <button type="button" class="chip-step-btn" data-delta="5">+₹5</button>
+        <button type="button" class="chip-step-btn" data-delta="10">+₹10</button>
+      </div>
+
+      <label class="price-editor-toggle">
+        <input type="checkbox" id="pePermanent" checked>
+        Save permanently to menu (uncheck = session only)
+      </label>
+
+      <div class="price-editor-actions">
+        <button type="button" class="btn-price-save" id="btnPriceSave">✅ Save Price</button>
+        <button type="button" class="btn-price-cancel" id="btnPriceCancel">Cancel</button>
+      </div>
+    `;
+
+    document.body.appendChild(priceEditorPopup);
+
+    // Center popup nicely on screen (mobile & desktop)
+    const popW = Math.min(330, window.innerWidth - 30);
+    priceEditorPopup.style.left = `${Math.max(15, (window.innerWidth - popW) / 2)}px`;
+    priceEditorPopup.style.top = `${Math.max(40, (window.innerHeight - 280) / 2)}px`;
+
+    const pePriceInput = document.getElementById('pePriceInput');
+    const pePermanent = document.getElementById('pePermanent');
+    const btnMinus = document.getElementById('btnStepMinus');
+    const btnPlus = document.getElementById('btnStepPlus');
+
+    function adjustPrice(delta) {
+      let val = parseInt(pePriceInput.value, 10) || 0;
+      val = Math.max(1, val + delta);
+      pePriceInput.value = val;
+    }
+
+    btnMinus.addEventListener('click', () => adjustPrice(-5));
+    btnPlus.addEventListener('click', () => adjustPrice(5));
+
+    priceEditorPopup.querySelectorAll('.chip-step-btn').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const d = parseInt(chip.getAttribute('data-delta'), 10) || 0;
+        adjustPrice(d);
+      });
+    });
+
+    setTimeout(() => { pePriceInput.focus(); pePriceInput.select(); }, 60);
+
+    document.getElementById('btnPriceCancel').addEventListener('click', closePriceEditor);
+
+    document.getElementById('btnPriceSave').addEventListener('click', async () => {
+      const newSell = parseInt(pePriceInput.value, 10);
+      const isPermanent = pePermanent.checked;
+
+      if (!newSell || newSell < 1) {
+        showToast('Please enter a valid price (minimum ₹1)', 'error');
+        pePriceInput.focus();
+        return;
+      }
+
+      // Update in memory immediately for zero lag
+      const catalogItem = menuCatalog.find(m => String(m._id) === String(itemId));
+      if (catalogItem) {
+        catalogItem.sellingPrice = newSell;
+        catalogItem.baseCost = newSell;
+      }
+      renderItems();
+      closePriceEditor();
+      showToast(`Price updated: ${itemTitle} = ₹${newSell}`, 'success');
+
+      if (isPermanent) {
+        try {
+          const res = await fetch(`/api/menu/${itemId}/price`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sellingPrice: newSell,
+              baseCost: newSell
+            })
+          });
+          const data = await res.json();
+          if (!data.success) {
+            showToast(data.message || 'Price save failed', 'error');
+          }
+        } catch (err) {
+          showToast('Network error saving price to server', 'error');
+        }
+      }
+    });
+
+    priceEditorPopup.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('btnPriceSave').click();
+      if (e.key === 'Escape') closePriceEditor();
+    });
+  }
+
+  // Delegated listener for price wrap taps
+  if (itemsGrid) {
+    itemsGrid.addEventListener('click', (e) => {
+      const priceWrap = e.target.closest('.card-price-wrap');
+      if (priceWrap) {
+        e.stopPropagation();
+        openPriceEditor(
+          priceWrap.getAttribute('data-item-id'),
+          priceWrap.getAttribute('data-item-title'),
+          Number(priceWrap.getAttribute('data-current-price')),
+          priceWrap
+        );
+        return;
+      }
+    });
+  }
+
   // Delegated Card Click Listener (Zero Stutter)
   if (itemsGrid) {
     itemsGrid.addEventListener('click', (e) => {
+      // Don't trigger card-add if price wrap was tapped
+      if (e.target.closest('.card-price-wrap')) return;
       const card = e.target.closest('.menu-card');
       if (card) {
         const id = card.getAttribute('data-id');
@@ -462,7 +619,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================================================
-  // 8. Shake Variant Modal
+  // 8. Shake Variant Modal (Clean & Accurate)
   // ==========================================================================
   function openShakeVariantModal(item) {
     if (!shakeVariantModal) return;
@@ -471,18 +628,24 @@ document.addEventListener('DOMContentLoaded', () => {
     shakeVariantsList.innerHTML = '';
 
     (item.variants || []).forEach(v => {
+      const name = v.variantName || v.name || 'Standard';
+      const price = v.sellingPrice || v.price || 0;
+
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'shake-variant-btn';
-      btn.innerHTML = `<span>${v.name}</span><strong style="color: var(--color-gold);">₹${v.price}</strong>`;
+      btn.innerHTML = `
+        <span style="font-weight: 800; font-size: 0.9rem;">${name}</span>
+        <strong style="color: var(--color-gold); font-size: 1rem;">₹${price}</strong>
+      `;
       btn.addEventListener('click', () => {
         addToCart({
           menuItemId: item._id,
           sku: item.sku,
           title: item.title,
           category: item.category,
-          variant: v.name,
-          unitPrice: v.price
+          variant: name,
+          unitPrice: price
         });
         closeShakeVariantModal();
       });
@@ -567,30 +730,37 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeOrder && activeOrder.items && activeOrder.items.length > 0) {
       const st = activeOrder.orderStatus || 'PENDING';
       let badgeColor = '#E76F51';
-      let badgeText = '🟡 1. Food Ordered (Cooking)';
-      let nextAction = 'READY_FOR_PICKUP';
-      let nextLabel = '🔔 Confirm Food Ready';
-      let nextBg = '#48CAE4';
-      let nextColor = '#06182C';
+      let badgeText = '🟡 1. Ordered — Waiting';
+      let nextAction = 'KITCHEN_PREPARING';
+      let nextLabel = '🔥 Mark as Making / Preparing';
+      let nextBg = '#E76F51';
+      let nextColor = '#fff';
 
       if (activeOrder.paymentStatus === 'PAID') {
         badgeColor = 'var(--color-gold)';
-        badgeText = '✅ 4. PAID & FREE';
+        badgeText = '✅ 5. PAID & TABLE FREE';
         nextAction = null;
         nextLabel = 'Completed';
       } else if (st === 'SERVED') {
         badgeColor = '#52B788';
-        badgeText = '🍽️ 3. Food Served (Dining)';
+        badgeText = '🍽️ 4. Food Served (Dining)';
         nextAction = 'settle';
         nextLabel = `💳 Collect Payment & Settle Table`;
         nextBg = 'linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%)';
         nextColor = '#06182C';
       } else if (st === 'READY_FOR_PICKUP') {
         badgeColor = '#48CAE4';
-        badgeText = '🔔 2. Food Ready at Counter';
+        badgeText = '🔔 3. Food Ready at Counter';
         nextAction = 'SERVED';
         nextLabel = '🍽️ Confirm Food Served to Table';
         nextBg = '#52B788';
+        nextColor = '#06182C';
+      } else if (st === 'KITCHEN_PREPARING' || st === 'ACCEPTED') {
+        badgeColor = '#E76F51';
+        badgeText = '🔥 2. Kitchen is Making / Preparing';
+        nextAction = 'READY_FOR_PICKUP';
+        nextLabel = '🔔 Confirm Food is Ready';
+        nextBg = '#48CAE4';
         nextColor = '#06182C';
       }
 
@@ -598,8 +768,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="placed-order-card">
           <div class="placed-card-header">
             <span class="placed-card-title">📋 Placed Order (${activeOrder.orderNumber})</span>
-            <span class="placed-card-status" style="background: rgba(201,168,106,0.18); color: var(--color-gold);">
-              ${activeOrder.paymentStatus === 'PAID' ? '🟢 Paid' : '🟡 Active Bill'}
+            <span class="placed-card-status" style="background: rgba(201,168,106,0.18); color: ${badgeColor};">
+              ${activeOrder.paymentStatus === 'PAID' ? '✅ Paid & Free' : badgeText}
             </span>
           </div>
 
@@ -1025,13 +1195,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = order.orderStatus || 'PENDING';
     const isPaid = order.paymentStatus === 'PAID';
 
-    [stepBoxOrdered, stepBoxReady, stepBoxServed, stepBoxPaid].forEach(box => {
+    [stepBoxOrdered, stepBoxMaking, stepBoxReady, stepBoxServed, stepBoxPaid].forEach(box => {
       if (box) box.className = 'step-box';
     });
 
     if (isPaid) {
       if (modalStatusBadge) {
-        modalStatusBadge.textContent = '✅ 4. PAID & FREE';
+        modalStatusBadge.textContent = '✅ 5. PAID & TABLE FREE';
         modalStatusBadge.style.background = 'rgba(201, 168, 106, 0.25)';
         modalStatusBadge.style.color = 'var(--color-gold)';
       }
@@ -1045,7 +1215,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else if (status === 'SERVED') {
       if (modalStatusBadge) {
-        modalStatusBadge.textContent = '🍽️ 3. SERVED TO TABLE';
+        modalStatusBadge.textContent = '🍽️ 4. SERVED TO TABLE';
         modalStatusBadge.style.background = 'rgba(82, 183, 136, 0.25)';
         modalStatusBadge.style.color = '#52B788';
       }
@@ -1060,7 +1230,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else if (status === 'READY_FOR_PICKUP') {
       if (modalStatusBadge) {
-        modalStatusBadge.textContent = '🔔 2. FOOD READY';
+        modalStatusBadge.textContent = '🔔 3. FOOD READY AT COUNTER';
         modalStatusBadge.style.background = 'rgba(72, 202, 228, 0.25)';
         modalStatusBadge.style.color = '#48CAE4';
       }
@@ -1073,21 +1243,36 @@ document.addEventListener('DOMContentLoaded', () => {
         btnAdvanceStatusAction.disabled = false;
         btnAdvanceStatusAction.setAttribute('data-target-action', 'SERVED');
       }
-    } else {
-      // PENDING
+    } else if (status === 'KITCHEN_PREPARING' || status === 'ACCEPTED') {
       if (modalStatusBadge) {
-        modalStatusBadge.textContent = '🟡 1. ORDERED (COOKING)';
+        modalStatusBadge.textContent = '🔥 2. KITCHEN MAKING / PREPARING';
         modalStatusBadge.style.background = 'rgba(231, 111, 81, 0.25)';
         modalStatusBadge.style.color = '#E76F51';
       }
-      if (stepBoxOrdered) stepBoxOrdered.className = 'step-box active-pending';
+      if (stepBoxMaking) stepBoxMaking.className = 'step-box active-making';
       if (btnAdvanceStatusAction) {
         btnAdvanceStatusAction.style.background = '#48CAE4';
         btnAdvanceStatusAction.style.color = '#06182C';
         if (advanceActionIcon) advanceActionIcon.textContent = '🔔';
-        if (advanceActionLabel) advanceActionLabel.textContent = 'Confirm Food is Ready';
+        if (advanceActionLabel) advanceActionLabel.textContent = 'Confirm Food is Ready at Counter';
         btnAdvanceStatusAction.disabled = false;
         btnAdvanceStatusAction.setAttribute('data-target-action', 'READY_FOR_PICKUP');
+      }
+    } else {
+      // PENDING — Just placed, waiting to be picked up by kitchen
+      if (modalStatusBadge) {
+        modalStatusBadge.textContent = '🟡 1. ORDERED — WAITING';
+        modalStatusBadge.style.background = 'rgba(231, 111, 81, 0.15)';
+        modalStatusBadge.style.color = '#E76F51';
+      }
+      if (stepBoxOrdered) stepBoxOrdered.className = 'step-box active-pending';
+      if (btnAdvanceStatusAction) {
+        btnAdvanceStatusAction.style.background = '#E76F51';
+        btnAdvanceStatusAction.style.color = '#fff';
+        if (advanceActionIcon) advanceActionIcon.textContent = '🔥';
+        if (advanceActionLabel) advanceActionLabel.textContent = 'Mark as Making / Preparing';
+        btnAdvanceStatusAction.disabled = false;
+        btnAdvanceStatusAction.setAttribute('data-target-action', 'KITCHEN_PREPARING');
       }
     }
   }

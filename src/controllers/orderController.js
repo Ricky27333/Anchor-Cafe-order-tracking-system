@@ -661,7 +661,13 @@ async function settleTablePayment(req, res) {
 
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       try {
-        order = await Order.findById(orderId).maxTimeMS(1200);
+        const isObjId = mongoose.isValidObjectId(orderId);
+        order = await Order.findOne({
+          $or: [
+            isObjId ? { _id: orderId } : null,
+            { orderNumber: orderId }
+          ].filter(Boolean)
+        }).maxTimeMS(1200);
       } catch (e) {}
     }
 

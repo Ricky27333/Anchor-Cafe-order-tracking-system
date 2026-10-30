@@ -250,7 +250,7 @@
       </div>
     </div>
     <button class="mobile-cart-action-btn" id="btnMobileReviewAction">
-      <span>Review &amp; Settle</span>
+      <span>View &amp; Settle</span>
       <span>➔</span>
     </button>
   </div>
@@ -270,35 +270,39 @@
       </div>
 
       <div class="modal-body">
-        <!-- 4-Step Table Order Lifecycle Stepper -->
+        <!-- 5-Step Table Order Lifecycle Stepper -->
         <div class="table-order-status-card" id="modalOrderStatusCard">
           <div class="modal-status-top">
             <span class="modal-status-label">Live Table Status:</span>
-            <span class="modal-status-badge" id="modalStatusBadge">🟡 1. ORDERED (COOKING)</span>
+            <span class="modal-status-badge" id="modalStatusBadge">🟡 1. ORDERED</span>
           </div>
 
-          <div class="status-stepper-grid">
+          <div class="status-stepper-grid stepper-5">
             <div class="step-box active-pending" id="stepBoxOrdered">
               <span>🟡 1</span>
               <div>Ordered</div>
             </div>
+            <div class="step-box" id="stepBoxMaking">
+              <span>🔥 2</span>
+              <div>Making</div>
+            </div>
             <div class="step-box" id="stepBoxReady">
-              <span>🔔 2</span>
-              <div>Food Ready</div>
+              <span>🔔 3</span>
+              <div>Ready</div>
             </div>
             <div class="step-box" id="stepBoxServed">
-              <span>🍽️ 3</span>
+              <span>🍽️ 4</span>
               <div>Served</div>
             </div>
             <div class="step-box" id="stepBoxPaid">
-              <span>💰 4</span>
+              <span>💰 5</span>
               <div>Paid</div>
             </div>
           </div>
 
           <button class="btn-advance-status" id="btnAdvanceStatusAction">
-            <span id="advanceActionIcon">🔔</span>
-            <span id="advanceActionLabel">Confirm Food is Ready</span>
+            <span id="advanceActionIcon">🔥</span>
+            <span id="advanceActionLabel">Mark as Making / Preparing</span>
           </button>
         </div>
 
