@@ -23,16 +23,19 @@
     <!-- Mode Switcher (Menu vs Floor) -->
     <div class="header-mode-switch">
       <button class="mode-pill active" id="tabBtnMenuCatalog">
-        📜 Menu Offerings
+        <span class="mode-text-full">📜 Menu Offerings</span>
+        <span class="mode-text-short">📜 Menu</span>
       </button>
       <button class="mode-pill" id="tabBtnTablesOverview">
-        🪑 Tables Floor (<span id="occupiedTablesCount">0</span> Active)
+        <span class="mode-text-full">🪑 Tables Floor (<span id="occupiedTablesCount">0</span> Active)</span>
+        <span class="mode-text-short">🪑 Floor (<span class="occupied-count-mirror">0</span>)</span>
       </button>
     </div>
 
     <div class="header-actions">
       <a href="/admin/analytics" class="nav-link header-analytics-link" title="Open Day-Wise Sales, Expenses & Reports">
-        📊 Financial Records
+        <span class="analytics-text-full">📊 Financial Records</span>
+        <span class="analytics-text-short">📊 Records</span>
       </a>
       <button class="btn-sound-toggle" id="btnSoundToggle" title="Toggle Order Chimes">
         🔊 Sound: ON
@@ -60,15 +63,15 @@
 
     <div class="table-bar-right">
       <div class="active-table-badge" id="activeTableIndicator">
-        <span>Active:</span>
+        <span class="badge-active-label">Active:</span>
         <strong id="topActiveTableLabel">Table 1</strong>
         <span id="topActiveTableBill" class="badge-bill">₹0</span>
-        <button id="btnTopCheckStatus" class="btn-top-check-status" style="display: none;">📋 Check Status</button>
+        <button id="btnTopCheckStatus" class="btn-top-check-status" style="display: none;">📋 Status</button>
       </div>
 
       <div class="search-input-box">
         <span class="search-ico">🔍</span>
-        <input type="text" id="searchInput" placeholder="Search water, drink, coffee, snacks...">
+        <input type="text" id="searchInput" placeholder="Search drinks, snacks...">
       </div>
     </div>
   </section>

@@ -1124,6 +1124,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (occupiedTablesCount) occupiedTablesCount.textContent = occupiedCount;
     if (tablesGridOccupiedCount) tablesGridOccupiedCount.textContent = occupiedCount;
+    document.querySelectorAll('.occupied-count-mirror').forEach(el => el.textContent = occupiedCount);
   }
 
   function renderTakeawaysFloorGrid() {
