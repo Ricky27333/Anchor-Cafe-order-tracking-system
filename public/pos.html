@@ -75,6 +75,7 @@
             </span>
             <div style="display: flex; gap: 0.4rem; align-items: center;">
               <span id="stripActiveTableBillBadge" style="color: var(--color-gold); font-size: 0.72rem; background: rgba(201,168,106,0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: none;">₹0</span>
+              <button id="btnStripCheckStatus" style="display: none; background: rgba(72, 202, 228, 0.2); border: 1px solid #48CAE4; color: #48CAE4; border-radius: 4px; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; cursor: pointer; touch-action: manipulation;" title="Check ordered items, kitchen progress & confirm status">📋 Check Status</button>
               <button class="btn-open-table-sheet-top" id="btnOpenTableSheetTop" title="Open 9-Tables Selection Drawer">
                 <span>🪑 Switch Table 🔼</span>
               </button>
@@ -398,7 +399,44 @@
         <button class="modal-close" id="btnCloseTableModal">&times;</button>
       </div>
 
-      <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+      <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+        <!-- Live Kitchen & Dining Lifecycle Status Stepper -->
+        <div class="table-order-status-card" id="modalOrderStatusCard">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+            <div style="font-size: 0.78rem; font-weight: 800; color: var(--color-gold); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 0.35rem;">
+              <span>🍽️</span> <span>Order Lifecycle Status:</span>
+            </div>
+            <span id="modalStatusBadge" style="font-size: 0.75rem; font-weight: 800; padding: 0.2rem 0.65rem; border-radius: 12px; background: rgba(231,111,81,0.25); color: #E76F51; border: 1px solid #E76F51;">
+              🟡 1. ORDERED (PENDING)
+            </span>
+          </div>
+
+          <!-- Step Progression Pills -->
+          <div class="status-stepper-grid">
+            <div class="step-box active-pending" id="stepBoxOrdered">
+              1. Ordered
+            </div>
+            <div class="step-box" id="stepBoxReady">
+              2. Ready
+            </div>
+            <div class="step-box" id="stepBoxServed">
+              3. Served
+            </div>
+            <div class="step-box" id="stepBoxPaid">
+              4. Paid
+            </div>
+          </div>
+
+          <!-- 1-Tap Mobile Status Confirmation Button -->
+          <button class="btn-advance-status" id="btnAdvanceStatusAction" type="button">
+            <span id="advanceActionIcon">🔔</span>
+            <span id="advanceActionLabel">Mark Food as Ready</span>
+          </button>
+        </div>
+
+        <div style="font-size: 0.78rem; font-weight: 800; color: var(--color-gold); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem;">
+          📋 Ordered Items Breakdown:
+        </div>
         <!-- Ordered Items Table breakdown -->
         <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 1rem;">
           <thead>

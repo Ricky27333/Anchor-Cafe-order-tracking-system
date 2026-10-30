@@ -177,10 +177,96 @@
   transform: scale(0.97);
 }
 
-/* Instant GPU Tap Flash on Mobile */
-.menu-card.tap-flash {
-  border-color: #52B788 !important;
-  box-shadow: 0 0 16px rgba(82, 183, 136, 0.5) !important;
+/* Table Order Lifecycle Progression Stepper */
+.table-order-status-card {
+  background: rgba(16, 43, 78, 0.95);
+  border: 1.5px solid var(--color-gold);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  margin-bottom: 1rem;
+}
+.status-stepper-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+.step-box {
+  text-align: center;
+  padding: 0.45rem 0.2rem;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-foam);
+  user-select: none;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.step-box.active-pending {
+  border-color: #E76F51;
+  background: rgba(231, 111, 81, 0.25);
+  color: #E76F51;
+  font-weight: 800;
+}
+.step-box.active-ready {
+  border-color: #48CAE4;
+  background: rgba(72, 202, 228, 0.25);
+  color: #48CAE4;
+  font-weight: 800;
+}
+.step-box.active-served {
+  border-color: #52B788;
+  background: rgba(82, 183, 136, 0.25);
+  color: #52B788;
+  font-weight: 800;
+}
+.step-box.active-paid {
+  border-color: var(--color-gold);
+  background: rgba(201, 168, 106, 0.25);
+  color: var(--color-gold);
+  font-weight: 800;
+}
+
+.btn-advance-status {
+  width: 100%;
+  padding: 0.7rem;
+  border-radius: var(--radius-pill);
+  font-weight: 800;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border: none;
+  background: #48CAE4;
+  color: #06182C;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  touch-action: manipulation;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.btn-advance-status:active {
+  transform: scale(0.97);
+}
+
+.btn-cart-advance-status {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: var(--radius-sm);
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+  border: none;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  touch-action: manipulation;
+  transition: transform 0.15s ease;
+}
+.btn-cart-advance-status:active {
+  transform: scale(0.97);
 }
 
 .card-top {
@@ -1187,6 +1273,21 @@
   background: var(--color-gold);
   color: #06182C;
   font-weight: 800;
+}
+.tsc-badge.pending {
+  background: rgba(231, 111, 81, 0.25);
+  color: #FFB4A2;
+  border: 1px solid #E76F51;
+}
+.tsc-badge.ready {
+  background: rgba(72, 202, 228, 0.25);
+  color: #48CAE4;
+  border: 1px solid #48CAE4;
+}
+.tsc-badge.served {
+  background: rgba(82, 183, 136, 0.25);
+  color: #52B788;
+  border: 1px solid #52B788;
 }
 
 .tsc-info {

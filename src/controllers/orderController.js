@@ -406,7 +406,22 @@ async function updateOrderStatus(req, res) {
       return res.status(400).json({ success: false, message: `Invalid status "${status}"` });
     }
 
-    const order = await Order.findById(id);
+    let order = null;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        order = await Order.findOne({
+          $or: [
+            { _id: mongoose.isValidObjectId(id) ? id : null },
+            { orderNumber: id }
+          ].filter(Boolean)
+        }).maxTimeMS(1200);
+      } catch (e) {}
+    }
+
+    if (!order) {
+      order = localDataStore.getOrderById(id);
+    }
+
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -419,18 +434,29 @@ async function updateOrderStatus(req, res) {
 
     if (status === 'ACCEPTED' && !order.timestamps.acceptedAt) {
       order.timestamps.acceptedAt = now;
+      order.acceptedAt = now;
     } else if (status === 'KITCHEN_PREPARING' && !order.timestamps.kitchenStartedAt) {
       order.timestamps.kitchenStartedAt = now;
+      order.kitchenStartedAt = now;
     } else if (status === 'READY_FOR_PICKUP' && !order.timestamps.readyAt) {
       order.timestamps.readyAt = now;
+      order.readyAt = now;
     } else if (status === 'SERVED' && !order.timestamps.completedAt) {
       order.timestamps.completedAt = now;
+      order.completedAt = now;
     }
 
-    const saved = await order.save();
+    let saved = order;
+    if (order.save) {
+      try {
+        saved = await order.save();
+      } catch (e) {}
+    }
+    localDataStore.saveOrder(saved.toObject ? saved.toObject() : saved);
+
     syncOrderToOracle(saved).catch(() => {});
 
-    // Broadcast status change to kitchen and live tracking views
+    // Broadcast status change to kitchen, POS, and live tracking views
     emitStatusChange(saved);
 
     res.json({
