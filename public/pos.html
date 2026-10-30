@@ -67,6 +67,7 @@
         <strong id="topActiveTableLabel">Table 1</strong>
         <span id="topActiveTableBill" class="badge-bill">₹0</span>
         <button id="btnTopCheckStatus" class="btn-top-check-status" style="display: none;">📋 Status</button>
+        <button id="btnTopShiftTable" class="btn-top-shift-table" style="display: none;" title="Shift this table order">🔀 Shift</button>
       </div>
 
       <div class="search-input-box">
@@ -192,6 +193,7 @@
             <span class="cart-table-tag" id="cartActiveTableTag">Table 1</span>
           </div>
           <div class="cart-header-actions">
+            <button class="btn-shift-table" id="btnShiftTableCart" title="Shift order to another table">🔀 Shift</button>
             <button class="btn-cart-clear" id="btnClearCart" title="Clear draft additions">Clear</button>
             <button class="btn-close-mobile-cart" id="btnCloseMobileCart" title="Close cart and return to menu">&times;</button>
           </div>
@@ -335,12 +337,47 @@
         <button class="btn-modal-print" id="btnModalPrintBill">
           🖨️ Thermal Print Receipt
         </button>
+        <button class="btn-modal-shift" id="btnModalShiftTable">
+          🔀 Shift Table
+        </button>
         <button class="btn-modal-add" id="btnModalAddMoreItems">
           ➕ Add More Items
         </button>
         <button class="btn-modal-settle" id="btnModalSettlePayment">
           💳 Settle &amp; Free Table
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shift Table Modal (Fast 1-Tap Table Transfer & Merge) -->
+  <div class="modal-overlay" id="shiftTableModal" role="dialog" aria-modal="true">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <div>
+          <h3 style="margin: 0; font-size: 1.15rem; color: var(--color-gold);">🔀 Shift Table Order</h3>
+          <p style="margin: 4px 0 0; font-size: 0.8rem; color: var(--color-foam);">
+            From: <strong id="shiftModalSourceTable" style="color: #FFF;">Table 9</strong> 
+            <span id="shiftModalOrderSummary" style="color: var(--color-teal); margin-left: 6px;"></span>
+          </p>
+        </div>
+        <button class="modal-close" id="btnCloseShiftModal" aria-label="Close modal">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1rem 1.25rem;">
+        <div style="font-size: 0.85rem; font-weight: 700; color: var(--color-cream); margin-bottom: 0.75rem;">
+          Select Destination Table:
+        </div>
+        <div class="shift-tables-grid" id="shiftDestinationsGrid">
+          <!-- Populated dynamically: T1-T9 + Parcel -->
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.75rem; color: var(--color-foam); opacity: 0.85;">
+          💡 Vacant moves order immediately; occupied merges bills.
+        </span>
+        <button class="btn-outline" id="btnCancelShiftModal">Cancel</button>
       </div>
     </div>
   </div>

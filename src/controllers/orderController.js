@@ -998,6 +998,183 @@ async function mergeTableOrders(req, res) {
   }
 }
 
+/**
+ * Shift an active table order or items to another table
+ * Supports both:
+ * 1. Pure transfer into a vacant table
+ * 2. Merging into an already occupied table
+ */
+async function shiftTableOrder(req, res) {
+  try {
+    const { fromTable, toTable } = req.body;
+    if (!fromTable || !toTable) {
+      return res.status(400).json({ success: false, message: 'Both source and target table are required.' });
+    }
+
+    const normFrom = fromTable.trim();
+    const normTo = toTable.trim();
+
+    if (normFrom.toLowerCase() === normTo.toLowerCase()) {
+      return res.status(400).json({ success: false, message: 'Source and target table cannot be the same.' });
+    }
+
+    // 1. Locate active order on source table
+    let activeSourceOrder = null;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const fromRegex = new RegExp(`^${normFrom}$`, 'i');
+        activeSourceOrder = await Order.findOne({
+          'locationDetails.tableNumber': { $regex: fromRegex },
+          paymentStatus: { $ne: 'PAID' },
+          orderStatus: { $ne: 'CANCELLED' }
+        });
+      } catch (e) {}
+    }
+
+    if (!activeSourceOrder) {
+      const localSourceOrders = localDataStore.getActiveOrdersForTable(normFrom);
+      if (localSourceOrders.length > 0) {
+        activeSourceOrder = localSourceOrders[0];
+      }
+    }
+
+    // If source has no active bill on backend, it might be draft-only items
+    if (!activeSourceOrder) {
+      return res.json({
+        success: true,
+        message: `Draft items moved from ${normFrom} to ${normTo}`,
+        isDraftOnly: true
+      });
+    }
+
+    // 2. Check if target table already has an active bill
+    let activeTargetOrder = null;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const toRegex = new RegExp(`^${normTo}$`, 'i');
+        activeTargetOrder = await Order.findOne({
+          'locationDetails.tableNumber': { $regex: toRegex },
+          paymentStatus: { $ne: 'PAID' },
+          orderStatus: { $ne: 'CANCELLED' }
+        });
+      } catch (e) {}
+    }
+
+    if (!activeTargetOrder) {
+      const localTargetOrders = localDataStore.getActiveOrdersForTable(normTo);
+      if (localTargetOrders.length > 0) {
+        activeTargetOrder = localTargetOrders[0];
+      }
+    }
+
+    const { getIO } = require('../sockets/socketHandler');
+    const io = getIO();
+
+    if (activeTargetOrder) {
+      // CASE A: Target table is occupied -> MERGE source order into target order
+      const sourceItems = activeSourceOrder.items || [];
+      sourceItems.forEach(it => {
+        activeTargetOrder.items.push({
+          menuItemId: it.menuItemId,
+          sku: it.sku,
+          title: `${it.title} (${normFrom})`,
+          category: it.category,
+          variant: it.variant,
+          unitPrice: it.unitPrice,
+          quantity: it.quantity,
+          subtotal: it.subtotal || (it.unitPrice * it.quantity),
+          specialInstructions: it.specialInstructions || ''
+        });
+      });
+
+      let newSubtotal = 0;
+      let newItemCount = 0;
+      activeTargetOrder.items.forEach(it => {
+        newSubtotal += (it.subtotal || (it.unitPrice * it.quantity));
+        newItemCount += (Number(it.quantity) || 1);
+      });
+
+      activeTargetOrder.subtotalAmount = newSubtotal;
+      activeTargetOrder.totalItemCount = newItemCount;
+      activeTargetOrder.finalTotalAmount = Math.max(0, newSubtotal - (Number(activeTargetOrder.discountAmount) || 0));
+      activeTargetOrder.kitchenNotes = (activeTargetOrder.kitchenNotes || '') + ` [Shift-Merged from ${normFrom}]`;
+
+      if (activeTargetOrder.save) {
+        try { await activeTargetOrder.save(); } catch (e) {}
+      } else if (mongoose.connection && mongoose.connection.readyState === 1 && activeTargetOrder._id) {
+        try {
+          await Order.findByIdAndUpdate(activeTargetOrder._id, {
+            items: activeTargetOrder.items,
+            subtotalAmount: newSubtotal,
+            totalItemCount: newItemCount,
+            finalTotalAmount: activeTargetOrder.finalTotalAmount,
+            kitchenNotes: activeTargetOrder.kitchenNotes
+          });
+        } catch (e) {}
+      }
+      localDataStore.saveOrder(activeTargetOrder.toObject ? activeTargetOrder.toObject() : activeTargetOrder);
+      syncOrderToOracle(activeTargetOrder).catch(() => {});
+
+      // Settle/retire source order
+      activeSourceOrder.paymentStatus = 'PAID';
+      activeSourceOrder.orderStatus = 'SERVED';
+      activeSourceOrder.kitchenNotes = (activeSourceOrder.kitchenNotes || '') + ` [Shifted & merged into ${normTo}]`;
+      if (activeSourceOrder.save) {
+        try { await activeSourceOrder.save(); } catch (e) {}
+      } else if (mongoose.connection && mongoose.connection.readyState === 1 && activeSourceOrder._id) {
+        try {
+          await Order.findByIdAndUpdate(activeSourceOrder._id, {
+            paymentStatus: 'PAID',
+            orderStatus: 'SERVED',
+            kitchenNotes: activeSourceOrder.kitchenNotes
+          });
+        } catch (e) {}
+      }
+      localDataStore.saveOrder(activeSourceOrder.toObject ? activeSourceOrder.toObject() : activeSourceOrder);
+      syncOrderToOracle(activeSourceOrder).catch(() => {});
+
+      if (io) io.emit('tables:count_updated', { action: 'merge', fromTable: normFrom, toTable: normTo });
+
+      return res.json({
+        success: true,
+        action: 'merged',
+        message: `Shift-merged ${normFrom} into occupied ${normTo}! Total bill is now ₹${activeTargetOrder.finalTotalAmount}.`,
+        order: activeTargetOrder
+      });
+
+    } else {
+      // CASE B: Target table is vacant -> Clean shift
+      activeSourceOrder.locationDetails = activeSourceOrder.locationDetails || {};
+      activeSourceOrder.locationDetails.tableNumber = normTo;
+      activeSourceOrder.kitchenNotes = (activeSourceOrder.kitchenNotes || '') + ` [Shifted from ${normFrom} to ${normTo} at ${new Date().toLocaleTimeString()}]`;
+
+      if (activeSourceOrder.save) {
+        try { await activeSourceOrder.save(); } catch (e) {}
+      } else if (mongoose.connection && mongoose.connection.readyState === 1 && activeSourceOrder._id) {
+        try {
+          await Order.findByIdAndUpdate(activeSourceOrder._id, {
+            'locationDetails.tableNumber': normTo,
+            kitchenNotes: activeSourceOrder.kitchenNotes
+          });
+        } catch (e) {}
+      }
+      localDataStore.saveOrder(activeSourceOrder.toObject ? activeSourceOrder.toObject() : activeSourceOrder);
+      syncOrderToOracle(activeSourceOrder).catch(() => {});
+
+      if (io) io.emit('tables:count_updated', { action: 'shift', fromTable: normFrom, toTable: normTo });
+
+      return res.json({
+        success: true,
+        action: 'shifted',
+        message: `Successfully shifted ${normFrom} order to ${normTo}!`,
+        order: activeSourceOrder
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
 module.exports = {
   createOrder,
   getLiveOrders,
@@ -1009,5 +1186,6 @@ module.exports = {
   increaseTableCount,
   decreaseTableCount,
   mergeTableOrders,
+  shiftTableOrder,
   getTablePerformance
 };

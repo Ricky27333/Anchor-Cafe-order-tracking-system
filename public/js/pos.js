@@ -114,8 +114,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalTableItemsTbody = document.getElementById('modalTableItemsTbody');
   const modalTableTotalAmount = document.getElementById('modalTableTotalAmount');
   const btnModalPrintBill = document.getElementById('btnModalPrintBill');
+  const btnModalShiftTable = document.getElementById('btnModalShiftTable');
   const btnModalAddMoreItems = document.getElementById('btnModalAddMoreItems');
   const btnModalSettlePayment = document.getElementById('btnModalSettlePayment');
+  const btnTopShiftTable = document.getElementById('btnTopShiftTable');
+  const btnShiftTableCart = document.getElementById('btnShiftTableCart');
+
+  // Shift Table Modal DOM
+  const shiftTableModal = document.getElementById('shiftTableModal');
+  const btnCloseShiftModal = document.getElementById('btnCloseShiftModal');
+  const btnCancelShiftModal = document.getElementById('btnCancelShiftModal');
+  const shiftModalSourceTable = document.getElementById('shiftModalSourceTable');
+  const shiftModalOrderSummary = document.getElementById('shiftModalOrderSummary');
+  const shiftDestinationsGrid = document.getElementById('shiftDestinationsGrid');
   const btnAdvanceStatusAction = document.getElementById('btnAdvanceStatusAction');
   const advanceActionIcon = document.getElementById('advanceActionIcon');
   const advanceActionLabel = document.getElementById('advanceActionLabel');
@@ -276,6 +287,14 @@ document.addEventListener('DOMContentLoaded', () => {
         btnTopCheckStatus.style.display = 'none';
       }
     }
+
+    if (btnTopShiftTable) {
+      if (activeOrder || draftCart.length > 0) {
+        btnTopShiftTable.style.display = 'inline-flex';
+      } else {
+        btnTopShiftTable.style.display = 'none';
+      }
+    }
   }
 
   function selectTable(tableName) {
@@ -306,6 +325,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btnTopCheckStatus.addEventListener('click', () => {
       const activeOrder = getActiveOrderForSelectedTable();
       if (activeOrder) openTableDetailModal(selectedTable, activeOrder);
+    });
+  }
+
+  if (btnTopShiftTable) {
+    btnTopShiftTable.addEventListener('click', () => {
+      openShiftTableModal(selectedTable);
     });
   }
 
@@ -909,6 +934,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mobileCartTableLabel) mobileCartTableLabel.textContent = selectedTable;
     if (mobileCartCount) mobileCartCount.textContent = mobileGrandCount;
     if (mobileCartTotal) mobileCartTotal.textContent = `₹${mobileGrandTotal}`;
+
+    if (btnShiftTableCart) {
+      if (activeOrder || currentCart.length > 0) {
+        btnShiftTableCart.style.display = 'inline-flex';
+      } else {
+        btnShiftTableCart.style.display = 'none';
+      }
+    }
   }
 
   // Payment Method Ticks
@@ -1107,7 +1140,21 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="table-bill-amount">${billHtml}</div>
         <div class="table-items-preview">${itemsSummaryHtml}</div>
+        ${tbl.isOccupied ? `
+          <button class="btn-floor-shift" data-table="${tbl.tableNumber}" type="button">
+            🔀 Shift ${tbl.tableNumber}
+          </button>
+        ` : ''}
       `;
+
+      const floorShiftBtn = card.querySelector('.btn-floor-shift');
+      if (floorShiftBtn) {
+        floorShiftBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectTable(tbl.tableNumber);
+          openShiftTableModal(tbl.tableNumber);
+        });
+      }
 
       card.addEventListener('click', () => {
         selectTable(tbl.tableNumber);
@@ -1364,6 +1411,183 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ==========================================================================
+  // 12. Fast 1-Tap Table Shifting & Merging (Busy Rush Crowd Manager)
+  // ==========================================================================
+  let currentShiftSourceTable = null;
+
+  function openShiftTableModal(sourceTable = selectedTable) {
+    if (!shiftTableModal) return;
+    currentShiftSourceTable = sourceTable;
+
+    if (shiftModalSourceTable) shiftModalSourceTable.textContent = sourceTable;
+
+    const activeOrder = getActiveOrderForSelectedTable(sourceTable);
+    const draftCart = getTableCart(sourceTable);
+
+    if (shiftModalOrderSummary) {
+      if (activeOrder) {
+        const count = activeOrder.totalItemCount || activeOrder.items?.length || 0;
+        shiftModalOrderSummary.textContent = `(${count} items • ₹${activeOrder.finalTotalAmount})`;
+      } else if (draftCart && draftCart.length > 0) {
+        let draftSum = 0;
+        draftCart.forEach(d => { draftSum += (d.unitPrice * d.quantity); });
+        shiftModalOrderSummary.textContent = `(${draftCart.length} draft items • ₹${draftSum})`;
+      } else {
+        shiftModalOrderSummary.textContent = `(Vacant table)`;
+      }
+    }
+
+    if (shiftDestinationsGrid) {
+      shiftDestinationsGrid.innerHTML = '';
+      const fragment = document.createDocumentFragment();
+
+      // Render 1 to N dining tables
+      for (let i = 1; i <= currentTotalTables; i++) {
+        const tName = `Table ${i}`;
+        const isCurrent = tName === sourceTable;
+        const matched = tablesData.find(t => t.tableNumber === tName);
+        const isOcc = matched && matched.isOccupied && matched.order;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('data-target-table', tName);
+
+        if (isCurrent) {
+          btn.className = 'shift-dest-btn current';
+          btn.disabled = true;
+          btn.innerHTML = `
+            <div class="shift-dest-num">T${i}</div>
+            <div class="shift-dest-status">Current Table</div>
+          `;
+        } else if (isOcc) {
+          btn.className = 'shift-dest-btn occupied';
+          btn.innerHTML = `
+            <div class="shift-dest-num">T${i}</div>
+            <div class="shift-dest-status">🟡 ₹${matched.order.finalTotalAmount} (Merge)</div>
+          `;
+          btn.addEventListener('click', () => {
+            executeTableShift(sourceTable, tName, true, matched.order.finalTotalAmount);
+          });
+        } else {
+          btn.className = 'shift-dest-btn vacant';
+          btn.innerHTML = `
+            <div class="shift-dest-num">T${i}</div>
+            <div class="shift-dest-status">🟢 Vacant (Move)</div>
+          `;
+          btn.addEventListener('click', () => {
+            executeTableShift(sourceTable, tName, false, 0);
+          });
+        }
+
+        fragment.appendChild(btn);
+      }
+
+      // Also render Parcel / Takeaway option
+      const isCurrentTakeaway = sourceTable === 'Takeaway';
+      const takeawayBtn = document.createElement('button');
+      takeawayBtn.type = 'button';
+      takeawayBtn.setAttribute('data-target-table', 'Takeaway');
+      if (isCurrentTakeaway) {
+        takeawayBtn.className = 'shift-dest-btn current';
+        takeawayBtn.disabled = true;
+        takeawayBtn.innerHTML = `
+          <div class="shift-dest-num">🛍️</div>
+          <div class="shift-dest-status">Current Parcel</div>
+        `;
+      } else if (activeTakeawaysData.length > 0) {
+        takeawayBtn.className = 'shift-dest-btn occupied';
+        takeawayBtn.innerHTML = `
+          <div class="shift-dest-num">🛍️</div>
+          <div class="shift-dest-status">🟡 Parcel (Merge)</div>
+        `;
+        takeawayBtn.addEventListener('click', () => {
+          executeTableShift(sourceTable, 'Takeaway', true, activeTakeawaysData[0]?.finalTotalAmount || 0);
+        });
+      } else {
+        takeawayBtn.className = 'shift-dest-btn vacant';
+        takeawayBtn.innerHTML = `
+          <div class="shift-dest-num">🛍️</div>
+          <div class="shift-dest-status">🟢 To Parcel</div>
+        `;
+        takeawayBtn.addEventListener('click', () => {
+          executeTableShift(sourceTable, 'Takeaway', false, 0);
+        });
+      }
+      fragment.appendChild(takeawayBtn);
+
+      shiftDestinationsGrid.appendChild(fragment);
+    }
+
+    shiftTableModal.classList.add('open');
+  }
+
+  function closeShiftTableModal() {
+    if (shiftTableModal) shiftTableModal.classList.remove('open');
+    currentShiftSourceTable = null;
+  }
+
+  async function executeTableShift(fromTable, toTable, isTargetOccupied, targetBill) {
+    if (isTargetOccupied) {
+      const confirmMerge = window.confirm(
+        `Table Shift & Merge:\n\n` +
+        `${toTable} already has an active order (₹${targetBill}).\n\n` +
+        `Do you want to MERGE ${fromTable}'s items into ${toTable}'s bill?`
+      );
+      if (!confirmMerge) return;
+    }
+
+    try {
+      // 1. Call backend shift API
+      const res = await fetch('/api/orders/tables/shift', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromTable, toTable })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        // 2. Migrate any local draft cart items
+        if (tableCarts[fromTable] && tableCarts[fromTable].length > 0) {
+          if (!tableCarts[toTable]) tableCarts[toTable] = [];
+          tableCarts[toTable] = [...tableCarts[toTable], ...tableCarts[fromTable]];
+          delete tableCarts[fromTable];
+          persistTableCarts();
+        }
+
+        closeShiftTableModal();
+        if (tableDetailModal) tableDetailModal.classList.remove('open');
+
+        // 3. Switch to target table and refresh
+        selectTable(toTable);
+        await fetchTablesOverview(true);
+
+        showToast(data.message || `Successfully moved order to ${toTable}!`, 'success');
+      } else {
+        showToast(data.message || 'Failed to shift table', 'error');
+      }
+    } catch (err) {
+      showToast(`Network error shifting table: ${err.message}`, 'error');
+    }
+  }
+
+  if (btnShiftTableCart) {
+    btnShiftTableCart.addEventListener('click', () => {
+      openShiftTableModal(selectedTable);
+    });
+  }
+
+  if (btnModalShiftTable) {
+    btnModalShiftTable.addEventListener('click', () => {
+      const targetTbl = (modalActiveOrder && modalActiveOrder.locationDetails?.tableNumber) || selectedTable;
+      if (tableDetailModal) tableDetailModal.classList.remove('open');
+      openShiftTableModal(targetTbl);
+    });
+  }
+
+  if (btnCloseShiftModal) btnCloseShiftModal.addEventListener('click', closeShiftTableModal);
+  if (btnCancelShiftModal) btnCancelShiftModal.addEventListener('click', closeShiftTableModal);
 
   // ==========================================================================
   // 12. Mobile Cart Drawer Open & Close

@@ -253,6 +253,28 @@ body {
   touch-action: manipulation;
 }
 
+.btn-top-shift-table {
+  background: rgba(201, 168, 106, 0.2);
+  border: 1px solid var(--color-gold);
+  color: var(--color-gold);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: all 0.15s ease;
+}
+
+.btn-top-shift-table:hover,
+.btn-top-shift-table:active {
+  background: var(--color-gold);
+  color: #06182C;
+}
+
 .search-input-box {
   position: relative;
   width: 220px;
@@ -909,6 +931,29 @@ body {
   border-radius: 4px;
   font-size: 0.72rem;
   cursor: pointer;
+}
+
+.btn-shift-table {
+  background: rgba(201, 168, 106, 0.18);
+  border: 1px solid var(--color-gold);
+  color: var(--color-gold);
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+}
+
+.btn-shift-table:hover,
+.btn-shift-table:active {
+  background: var(--color-gold);
+  color: #06182C;
 }
 
 .btn-close-mobile-cart {
@@ -1571,6 +1616,28 @@ body {
   color: var(--color-foam);
 }
 
+.btn-modal-shift {
+  background: rgba(201, 168, 106, 0.2);
+  border: 1px solid var(--color-gold);
+  color: var(--color-gold);
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+}
+
+.btn-modal-shift:hover,
+.btn-modal-shift:active {
+  background: var(--color-gold);
+  color: #06182C;
+}
+
 .btn-modal-add {
   background: rgba(82, 183, 136, 0.2);
   border: 1px solid #52B788;
@@ -1580,6 +1647,120 @@ body {
 .btn-modal-settle {
   background: linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%);
   color: #06182C;
+}
+
+/* Floor Card Shift Button */
+.btn-floor-shift {
+  margin-top: 0.45rem;
+  width: 100%;
+  background: rgba(201, 168, 106, 0.16);
+  border: 1px solid rgba(201, 168, 106, 0.45);
+  color: var(--color-gold);
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0.35rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+}
+
+.btn-floor-shift:hover,
+.btn-floor-shift:active {
+  background: var(--color-gold);
+  color: #06182C;
+}
+
+/* Shift Tables Grid (Fast & Touch-friendly) */
+.shift-tables-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+@media (min-width: 480px) {
+  .shift-tables-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+.shift-dest-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.65rem 0.35rem;
+  background: #06182C;
+  border: 1.5px solid rgba(72, 202, 228, 0.3);
+  border-radius: 8px;
+  color: var(--color-cream);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+  min-height: 56px;
+}
+
+.shift-dest-btn:active {
+  transform: scale(0.96);
+}
+
+.shift-dest-btn.vacant {
+  border-color: rgba(82, 183, 136, 0.5);
+  background: rgba(82, 183, 136, 0.08);
+}
+
+.shift-dest-btn.vacant:hover,
+.shift-dest-btn.vacant:active {
+  background: rgba(82, 183, 136, 0.22);
+  border-color: #52B788;
+}
+
+.shift-dest-btn.occupied {
+  border-color: rgba(201, 168, 106, 0.6);
+  background: rgba(201, 168, 106, 0.12);
+}
+
+.shift-dest-btn.occupied:hover,
+.shift-dest-btn.occupied:active {
+  background: rgba(201, 168, 106, 0.28);
+  border-color: var(--color-gold);
+}
+
+.shift-dest-btn.current {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.shift-dest-num {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #FFF;
+}
+
+.shift-dest-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.shift-dest-btn.vacant .shift-dest-status {
+  color: #52B788;
+}
+
+.shift-dest-btn.occupied .shift-dest-status {
+  color: var(--color-gold);
+}
+
+.shift-dest-btn.current .shift-dest-status {
+  color: var(--color-foam);
 }
 
 /* Shake Variant Grid */
