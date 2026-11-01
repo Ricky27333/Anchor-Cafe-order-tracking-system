@@ -60,7 +60,7 @@ async function recordPayment(req, res) {
 
     // Update Order payment status
     order.paymentStatus = 'PAID';
-    order.paymentMethod = paymentMethod.startsWith('UPI') ? 'UPI_QR' : (paymentMethod === 'POS_CARD' ? 'CARD' : 'CASH');
+    order.paymentMethod = (paymentMethod === 'CASH') ? 'CASH' : 'PHONEPE';
     await order.save();
 
     // Broadcast payment event via WebSocket
@@ -142,10 +142,8 @@ async function getDailyPayments(req, res) {
       totalRevenue += p.amountReceived;
       if (p.paymentMethod === 'CASH') {
         cashTotal += p.amountReceived;
-      } else if (p.paymentMethod.startsWith('UPI')) {
+      } else {
         upiTotal += p.amountReceived;
-      } else if (p.paymentMethod === 'POS_CARD') {
-        cardTotal += p.amountReceived;
       }
     });
 
@@ -157,7 +155,7 @@ async function getDailyPayments(req, res) {
         totalRevenue,
         cashTotal,
         upiTotal,
-        cardTotal,
+        cardTotal: 0,
         upiPercentage: totalRevenue > 0 ? Math.round((upiTotal / totalRevenue) * 100) : 0
       },
       payments

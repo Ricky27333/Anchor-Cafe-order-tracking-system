@@ -117,6 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnModalShiftTable = document.getElementById('btnModalShiftTable');
   const btnModalAddMoreItems = document.getElementById('btnModalAddMoreItems');
   const btnModalSettlePayment = document.getElementById('btnModalSettlePayment');
+  const modalPaymentSection = document.getElementById('modalPaymentSection');
+  const modalCurrentPaymentMethodBadge = document.getElementById('modalCurrentPaymentMethodBadge');
+  const btnModalPayPhonePe = document.getElementById('btnModalPayPhonePe');
+  const btnModalPayCash = document.getElementById('btnModalPayCash');
+  const modalSettleIcon = document.getElementById('modalSettleIcon');
+  const modalSettleText = document.getElementById('modalSettleText');
+  let modalSelectedPaymentMethod = 'PHONEPE';
   const btnTopShiftTable = document.getElementById('btnTopShiftTable');
   const btnShiftTableCart = document.getElementById('btnShiftTableCart');
 
@@ -1009,7 +1016,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const settleData = await settleRes.json();
         if (settleData.success) {
           clearTableCart(selectedTable);
-          showToast(`Table ${selectedTable} settled via ${selectedPaymentMethod}! Table is now FREE.`, 'success');
+          const payMethodLabel = selectedPaymentMethod === 'CASH' ? 'Cash' : 'PhonePe';
+          showToast(`Table ${selectedTable} settled via ${payMethodLabel}! Table is now FREE.`, 'success');
           if (soundEngine && soundEngine.playPaymentSuccess) soundEngine.playPaymentSuccess();
           if (posCartPanel) posCartPanel.classList.remove('mobile-open');
           if (cartMobileBackdrop) cartMobileBackdrop.classList.remove('open');
@@ -1215,11 +1223,71 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   // 11. Live Table Detail Modal (Lifecycle Stepper & Thermal Bill Print)
   // ==========================================================================
+  function setModalPaymentMethod(method) {
+    modalSelectedPaymentMethod = (method === 'CASH') ? 'CASH' : 'PHONEPE';
+    selectedPaymentMethod = modalSelectedPaymentMethod; // keep aligned with cart
+
+    // Sync cart buttons
+    document.querySelectorAll('.pay-tick-btn').forEach(btn => {
+      if (btn.getAttribute('data-method') === modalSelectedPaymentMethod) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    if (btnModalPayPhonePe && btnModalPayCash) {
+      if (modalSelectedPaymentMethod === 'CASH') {
+        btnModalPayCash.classList.add('active');
+        btnModalPayPhonePe.classList.remove('active');
+        if (modalCurrentPaymentMethodBadge) {
+          modalCurrentPaymentMethodBadge.textContent = '💵 CASH';
+          modalCurrentPaymentMethodBadge.style.color = '#52B788';
+          modalCurrentPaymentMethodBadge.style.borderColor = '#52B788';
+          modalCurrentPaymentMethodBadge.style.background = 'rgba(82, 183, 136, 0.2)';
+        }
+      } else {
+        btnModalPayPhonePe.classList.add('active');
+        btnModalPayCash.classList.remove('active');
+        if (modalCurrentPaymentMethodBadge) {
+          modalCurrentPaymentMethodBadge.textContent = '📱 PHONEPE';
+          modalCurrentPaymentMethodBadge.style.color = 'var(--color-gold)';
+          modalCurrentPaymentMethodBadge.style.borderColor = 'var(--color-gold)';
+          modalCurrentPaymentMethodBadge.style.background = 'rgba(201, 168, 106, 0.2)';
+        }
+      }
+    }
+
+    if (modalActiveOrder) {
+      const amount = modalActiveOrder.finalTotalAmount || 0;
+      if (modalSettleIcon && modalSettleText) {
+        modalSettleIcon.textContent = (modalSelectedPaymentMethod === 'CASH') ? '💵' : '📱';
+        modalSettleText.textContent = `Settle via ${modalSelectedPaymentMethod === 'CASH' ? 'Cash' : 'PhonePe'} (₹${amount}) & Free Table`;
+      }
+
+      if (btnAdvanceStatusAction && (modalActiveOrder.orderStatus === 'SERVED')) {
+        if (advanceActionIcon) advanceActionIcon.textContent = (modalSelectedPaymentMethod === 'CASH') ? '💵' : '📱';
+        if (advanceActionLabel) advanceActionLabel.textContent = `Collect ${modalSelectedPaymentMethod === 'CASH' ? 'Cash' : 'PhonePe'} & Settle (₹${amount})`;
+      }
+    }
+  }
+
+  if (btnModalPayPhonePe) {
+    btnModalPayPhonePe.addEventListener('click', () => setModalPaymentMethod('PHONEPE'));
+  }
+  if (btnModalPayCash) {
+    btnModalPayCash.addEventListener('click', () => setModalPaymentMethod('CASH'));
+  }
+
   function openTableDetailModal(tableName, order) {
     modalActiveOrder = order;
     modalTableTitle.textContent = `${tableName} Order Details`;
     modalTableOrderNum.textContent = `Ticket: ${order.orderNumber} • ${new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     modalTableTotalAmount.textContent = `₹${order.finalTotalAmount}`;
+
+    // Initialize modal payment method based on order or active selection
+    const initialMethod = (order.paymentMethod === 'CASH') ? 'CASH' : 'PHONEPE';
+    setModalPaymentMethod(initialMethod);
 
     updateModalStatusView(order);
 
@@ -1271,10 +1339,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (btnAdvanceStatusAction) {
         btnAdvanceStatusAction.style.background = 'linear-gradient(135deg, var(--color-gold) 0%, #A98344 100%)';
         btnAdvanceStatusAction.style.color = '#06182C';
-        if (advanceActionIcon) advanceActionIcon.textContent = '💳';
-        if (advanceActionLabel) advanceActionLabel.textContent = `Collect Payment & Settle (₹${order.finalTotalAmount})`;
+        if (advanceActionIcon) advanceActionIcon.textContent = (modalSelectedPaymentMethod === 'CASH') ? '💵' : '📱';
+        if (advanceActionLabel) advanceActionLabel.textContent = `Collect ${modalSelectedPaymentMethod === 'CASH' ? 'Cash' : 'PhonePe'} & Settle (₹${order.finalTotalAmount})`;
         btnAdvanceStatusAction.disabled = false;
         btnAdvanceStatusAction.setAttribute('data-target-action', 'settle');
+      }
+      if (modalSettleIcon && modalSettleText) {
+        modalSettleIcon.textContent = (modalSelectedPaymentMethod === 'CASH') ? '💵' : '📱';
+        modalSettleText.textContent = `Settle via ${modalSelectedPaymentMethod === 'CASH' ? 'Cash' : 'PhonePe'} (₹${order.finalTotalAmount}) & Free Table`;
       }
     } else if (status === 'READY_FOR_PICKUP') {
       if (modalStatusBadge) {
@@ -1359,6 +1431,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnModalSettlePayment.addEventListener('click', () => {
       const targetTbl = (modalActiveOrder && modalActiveOrder.locationDetails?.tableNumber) || selectedTable;
       selectTable(targetTbl);
+      selectedPaymentMethod = modalSelectedPaymentMethod; // Ensure chosen Cash or PhonePe is applied
       if (tableDetailModal) tableDetailModal.classList.remove('open');
       modalActiveOrder = null;
       submitTableOrder(true);

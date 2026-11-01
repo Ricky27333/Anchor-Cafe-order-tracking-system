@@ -25,7 +25,7 @@ const PaymentSchema = new mongoose.Schema({
   },
   paymentMethod: { 
     type: String, 
-    enum: ['CASH', 'PHONEPE', 'GPAY', 'PAYTM', 'UPI', 'UPI_PHONEPE', 'UPI_GPAY', 'UPI_PAYTM', 'UPI_QR', 'POS_CARD', 'CARD', 'CUSTOMER_TAB'], 
+    enum: ['CASH', 'PHONEPE', 'GPAY', 'PAYTM', 'UPI', 'UPI_PHONEPE', 'UPI_GPAY', 'UPI_PAYTM', 'UPI_QR', 'CUSTOMER_TAB'], 
     required: true, 
     index: true 
   },

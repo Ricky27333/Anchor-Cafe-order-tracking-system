@@ -192,13 +192,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const grandOrd = data.grandTotalOrders || 0;
       const grandCash = data.grandCashRevenue || 0;
       const grandUpi = data.grandUpiRevenue || 0;
-      const grandCard = data.grandCardRevenue || 0;
 
       if (dayWiseGrandRevenue) dayWiseGrandRevenue.textContent = `₹${grandRev.toLocaleString('en-IN')}`;
       if (dayWiseGrandOrders) dayWiseGrandOrders.textContent = `${grandOrd} Orders Completed`;
       if (dayWiseGrandCash) dayWiseGrandCash.textContent = `₹${grandCash.toLocaleString('en-IN')}`;
       if (dayWiseGrandUpi) dayWiseGrandUpi.textContent = `₹${grandUpi.toLocaleString('en-IN')}`;
-      if (dayWiseGrandCard) dayWiseGrandCard.textContent = `₹${grandCard.toLocaleString('en-IN')}`;
 
       // Set date display badge
       const activeDateDisplay = dateStr || (period === 'yesterday' ? 'Yesterday' : (new Date().toISOString().split('T')[0]));
@@ -227,8 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hasOrders) {
           const parts = [];
           if (cashAdded > 0) parts.push(`<span style="color: #52B788; font-weight: 700;">₹${cashAdded} Cash</span>`);
-          if (upiAdded > 0) parts.push(`<span style="color: #48CAE4; font-weight: 700;">₹${upiAdded} UPI</span>`);
-          if (t.cardRevenue > 0) parts.push(`<span style="color: var(--color-sand); font-weight: 700;">₹${t.cardRevenue} Card</span>`);
+          if (upiAdded > 0) parts.push(`<span style="color: #48CAE4; font-weight: 700;">₹${upiAdded} PhonePe/UPI</span>`);
           statusText = parts.join(' + ') || '<span style="color: #52B788;">Paid</span>';
         }
 
@@ -296,12 +293,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tableData.orders.forEach(ord => {
       const isCash = (ord.paymentMethod || '').toUpperCase() === 'CASH';
-      const isCard = (ord.paymentMethod || '').toUpperCase() === 'CARD';
       const payBadge = isCash 
         ? `<span style="background: rgba(82,183,136,0.2); color: #52B788; border: 1px solid #52B788; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800;">💵 CASH PAID</span>`
-        : (isCard 
-          ? `<span style="background: rgba(201,168,106,0.2); color: var(--color-gold); border: 1px solid var(--color-gold); padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800;">💳 CARD PAID</span>`
-          : `<span style="background: rgba(72,202,228,0.2); color: #48CAE4; border: 1px solid #48CAE4; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800;">📱 ${ord.paymentMethod}</span>`);
+        : `<span style="background: rgba(72,202,228,0.2); color: #48CAE4; border: 1px solid #48CAE4; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 800;">📱 ${ord.paymentMethod || 'PHONEPE'}</span>`;
 
       const timeFormatted = ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
@@ -1162,7 +1156,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (zMaterialExpenses) zMaterialExpenses.textContent = `₹${(t.totalExpenses || 0).toFixed(2)}`;
       zNetRevenue.textContent = `₹${(t.netRevenue || t.totalRevenue || 0).toFixed(2)}`;
       zUpiRev.textContent = `₹${(t.upiRevenue || 0).toFixed(2)}`;
-      zCardRev.textContent = `₹${(t.cardRevenue || 0).toFixed(2)}`;
       zCashRev.textContent = `₹${(t.cashRevenue || 0).toFixed(2)}`;
 
       inputClosingCash.value = Math.max(0, (t.cashRevenue || 0) - (t.totalExpenses || 0));

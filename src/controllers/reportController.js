@@ -342,8 +342,6 @@ async function getDailySummary(req, res) {
 
       if (order.paymentMethod === 'CASH') {
         cashRevenue += order.finalTotalAmount;
-      } else if (order.paymentMethod === 'CARD') {
-        cardRevenue += order.finalTotalAmount;
       } else {
         upiRevenue += order.finalTotalAmount;
       }
@@ -456,7 +454,6 @@ async function closeDayReport(req, res) {
       if (o.orderStatus === 'SERVED') completedOrdersCount++;
 
       if (o.paymentMethod === 'CASH') cashRevenue += o.finalTotalAmount;
-      else if (o.paymentMethod === 'CARD') cardRevenue += o.finalTotalAmount;
       else upiRevenue += o.finalTotalAmount;
 
       o.items.forEach(it => {

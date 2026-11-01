@@ -221,9 +221,10 @@ async function createOrder(req, res) {
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const paymentTransactionId = `TXN-${year}${month}${day}-${randomSuffix}`;
 
-        const validMethods = ['CASH', 'PHONEPE', 'GPAY', 'PAYTM', 'UPI', 'UPI_PHONEPE', 'UPI_GPAY', 'UPI_PAYTM', 'UPI_QR', 'POS_CARD', 'CARD', 'CUSTOMER_TAB'];
+        const validMethods = ['CASH', 'PHONEPE', 'GPAY', 'PAYTM', 'UPI', 'UPI_PHONEPE', 'UPI_GPAY', 'UPI_PAYTM', 'UPI_QR', 'CUSTOMER_TAB'];
         let normMethod = String(paymentMethod || 'PHONEPE').toUpperCase().trim();
         if (normMethod === 'GOOGLEPAY') normMethod = 'GPAY';
+        if (normMethod === 'CARD' || normMethod === 'POS_CARD') normMethod = 'CASH'; // Sanitize card to cash
         const finalPaymentMethod = validMethods.includes(normMethod) ? normMethod : 'PHONEPE';
 
         const paymentData = {
@@ -686,9 +687,10 @@ async function settleTablePayment(req, res) {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const paymentTransactionId = `TXN-${year}${month}${day}-${randomSuffix}`;
 
-    const validMethods = ['CASH', 'PHONEPE', 'GPAY', 'PAYTM', 'UPI', 'UPI_PHONEPE', 'UPI_GPAY', 'UPI_PAYTM', 'UPI_QR', 'POS_CARD', 'CARD', 'CUSTOMER_TAB'];
+    const validMethods = ['CASH', 'PHONEPE', 'GPAY', 'PAYTM', 'UPI', 'UPI_PHONEPE', 'UPI_GPAY', 'UPI_PAYTM', 'UPI_QR', 'CUSTOMER_TAB'];
     let normMethod = String(paymentMethod || 'PHONEPE').toUpperCase().trim();
     if (normMethod === 'GOOGLEPAY') normMethod = 'GPAY';
+    if (normMethod === 'CARD' || normMethod === 'POS_CARD') normMethod = 'CASH'; // Sanitize card to cash
     const finalPaymentMethod = validMethods.includes(normMethod) ? normMethod : 'PHONEPE';
 
     const paymentData = {
@@ -808,11 +810,8 @@ async function getTablePerformance(req, res) {
 
       const rev = tOrders.reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
       const cashRev = tOrders.filter(o => (o.paymentMethod || '').toUpperCase() === 'CASH').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
-      const upiRev = tOrders.filter(o => {
-        const m = (o.paymentMethod || '').toUpperCase();
-        return m !== 'CASH' && m !== 'CARD';
-      }).reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
-      const cardRev = tOrders.filter(o => (o.paymentMethod || '').toUpperCase() === 'CARD').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+      const upiRev = tOrders.filter(o => (o.paymentMethod || '').toUpperCase() !== 'CASH').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+      const cardRev = 0;
 
       const itemsCount = tOrders.reduce((acc, o) => acc + (Number(o.totalItemCount) || 0), 0);
       const paidOrders = tOrders.filter(o => o.paymentStatus === 'PAID').length;
@@ -831,7 +830,7 @@ async function getTablePerformance(req, res) {
         totalRevenue: rev,
         cashRevenue: cashRev,
         upiRevenue: upiRev,
-        cardRevenue: cardRev,
+        cardRevenue: 0,
         itemsCount,
         averageBill: tOrders.length > 0 ? Math.round(rev / tOrders.length) : 0,
         paidOrders,
@@ -856,17 +855,14 @@ async function getTablePerformance(req, res) {
     });
     const takeawayRev = takeawayOrders.reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
     const takeawayCash = takeawayOrders.filter(o => (o.paymentMethod || '').toUpperCase() === 'CASH').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
-    const takeawayUpi = takeawayOrders.filter(o => {
-      const m = (o.paymentMethod || '').toUpperCase();
-      return m !== 'CASH' && m !== 'CARD';
-    }).reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
-    const takeawayCard = takeawayOrders.filter(o => (o.paymentMethod || '').toUpperCase() === 'CARD').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+    const takeawayUpi = takeawayOrders.filter(o => (o.paymentMethod || '').toUpperCase() !== 'CASH').reduce((acc, o) => acc + (Number(o.finalTotalAmount) || 0), 0);
+    const takeawayCard = 0;
 
     grandRevenue += takeawayRev;
     grandOrders += takeawayOrders.length;
     grandCashRevenue += takeawayCash;
     grandUpiRevenue += takeawayUpi;
-    grandCardRevenue += takeawayCard;
+    grandCardRevenue += 0;
 
     tablesReport.push({
       tableNumber: 'Takeaway',
@@ -875,7 +871,7 @@ async function getTablePerformance(req, res) {
       totalRevenue: takeawayRev,
       cashRevenue: takeawayCash,
       upiRevenue: takeawayUpi,
-      cardRevenue: takeawayCard,
+      cardRevenue: 0,
       itemsCount: takeawayOrders.reduce((acc, o) => acc + (Number(o.totalItemCount) || 0), 0),
       averageBill: takeawayOrders.length > 0 ? Math.round(takeawayRev / takeawayOrders.length) : 0,
       paidOrders: takeawayOrders.filter(o => o.paymentStatus === 'PAID').length,

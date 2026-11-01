@@ -221,14 +221,12 @@
           <span id="finalTotalDisplay" class="final-total">₹0</span>
         </div>
 
-        <!-- Fast Payment Method Ticks -->
+        <!-- Fast Payment Method Ticks (Strictly PhonePe & Cash - No Card) -->
         <div class="payment-method-selector">
           <label>Payment Method:</label>
-          <div class="payment-ticks-row">
-            <button class="pay-tick-btn active" data-method="PHONEPE">📱 PhonePe</button>
-            <button class="pay-tick-btn" data-method="GPAY">🔵 GPay</button>
+          <div class="payment-ticks-row" style="grid-template-columns: 1fr 1fr;">
+            <button class="pay-tick-btn active" data-method="PHONEPE">📱 PhonePe / UPI</button>
             <button class="pay-tick-btn" data-method="CASH">💵 Cash</button>
-            <button class="pay-tick-btn" data-method="CARD">💳 Card</button>
           </div>
         </div>
 
@@ -331,6 +329,26 @@
           <span>Total Table Bill Amount:</span>
           <strong id="modalTableTotalAmount">₹0</strong>
         </div>
+
+        <!-- Settlement Payment Mode Selector (Strictly PhonePe / UPI vs Cash) -->
+        <div class="modal-payment-section" id="modalPaymentSection">
+          <div class="modal-pay-label">
+            <span>💰 Settlement Payment Method:</span>
+            <span id="modalCurrentPaymentMethodBadge" class="modal-pay-method-badge">📱 PHONEPE</span>
+          </div>
+          <div class="modal-pay-toggles">
+            <button type="button" class="btn-modal-pay-choice active" id="btnModalPayPhonePe" data-method="PHONEPE">
+              <span class="pay-icon">📱</span>
+              <span class="pay-title">PhonePe / UPI</span>
+              <span class="pay-sub">QR Code / UPI App</span>
+            </button>
+            <button type="button" class="btn-modal-pay-choice" id="btnModalPayCash" data-method="CASH">
+              <span class="pay-icon">💵</span>
+              <span class="pay-title">Cash</span>
+              <span class="pay-sub">Physical Cash at Counter</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="modal-footer">
@@ -344,7 +362,8 @@
           ➕ Add More Items
         </button>
         <button class="btn-modal-settle" id="btnModalSettlePayment">
-          💳 Settle &amp; Free Table
+          <span id="modalSettleIcon">📱</span>
+          <span id="modalSettleText">Settle via PhonePe &amp; Free Table</span>
         </button>
       </div>
     </div>
@@ -410,7 +429,7 @@
   <script src="/js/soundEffects.js"></script>
 
   <!-- High-Performance Zero-Lag POS Controller -->
-  <script src="/js/pos.js?v=20261101"></script>
+  <script src="/js/pos.js?v=20261101_v2"></script>
 
 </body>
 </html>
