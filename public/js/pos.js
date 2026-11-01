@@ -373,7 +373,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let filtered = menuCatalog;
     if (currentCategory !== 'all') {
-      filtered = filtered.filter(it => it.category === currentCategory);
+      filtered = filtered.filter(it => {
+        if (it.category === currentCategory) return true;
+        // Dual visibility for high-frequency canned drinks like Diet Coke
+        if (currentCategory === 'energy-drinks' && ((it.title && it.title.toLowerCase().includes('diet coke')) || (it.tags && it.tags.includes('Energy')))) {
+          return true;
+        }
+        if (currentCategory === 'soft-drinks' && ((it.title && it.title.toLowerCase().includes('diet coke')) || (it.tags && it.tags.includes('Soft Drink')))) {
+          return true;
+        }
+        return false;
+      });
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();

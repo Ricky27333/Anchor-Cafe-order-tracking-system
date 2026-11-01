@@ -555,15 +555,27 @@ const rawCatalog = [
   },
   {
     sku: 'SD-009',
-    title: 'Diet Coke / Coke Zero',
+    title: 'Diet Coke (Chilled Can 300ml)',
     category: 'soft-drinks',
     baseCost: 50,
     isMrp: true,
-    servingSize: '300ml Can',
-    description: 'Zero calorie, zero sugar crisp chilled cola.',
-    tags: ['Soft Drink', 'Zero Sugar', 'Veg'],
+    servingSize: '300ml Chilled Can',
+    description: 'Crisp zero-sugar, zero-calorie chilled cola served ice cold.',
+    tags: ['Soft Drink', 'Zero Sugar', 'Energy', 'Veg', 'Cold Can'],
     preparationTimeMinutes: 1,
     imageUrl: '/assets/images/diet_coke.webp'
+  },
+  {
+    sku: 'SD-010',
+    title: 'Coca-Cola Zero Sugar (300ml Can)',
+    category: 'soft-drinks',
+    baseCost: 50,
+    isMrp: true,
+    servingSize: '300ml Chilled Can',
+    description: 'Classic Coca-Cola taste with zero sugar and zero calories.',
+    tags: ['Soft Drink', 'Zero Sugar', 'Veg', 'Cold Can'],
+    preparationTimeMinutes: 1,
+    imageUrl: '/assets/images/coca_cola.webp'
   },
 
   // --- Category 8: Power Energy Drinks ---
@@ -600,6 +612,30 @@ const rawCatalog = [
     servingSize: '350ml Chilled Can',
     description: 'Smooth intense energy blend for beach sports and late night bonfires.',
     tags: ['Energy', 'Veg'],
+    preparationTimeMinutes: 1,
+    imageUrl: '/assets/images/monster.webp'
+  },
+  {
+    sku: 'ED-004',
+    title: 'Monster Energy Drink (Imported)',
+    category: 'energy-drinks',
+    baseCost: 180,
+    isMrp: true,
+    servingSize: '500ml Chilled Can',
+    description: 'Premium imported Monster energy blend with double energy charge.',
+    tags: ['Energy', 'Imported', 'Veg', 'Bestseller'],
+    preparationTimeMinutes: 1,
+    imageUrl: '/assets/images/monster.webp'
+  },
+  {
+    sku: 'ED-005',
+    title: 'Monster Energy Ultra - White (Imported)',
+    category: 'energy-drinks',
+    baseCost: 180,
+    isMrp: true,
+    servingSize: '500ml Chilled Can',
+    description: 'Imported zero sugar, light citrus Monster Ultra energy can.',
+    tags: ['Energy', 'Imported', 'Zero Sugar', 'Veg'],
     preparationTimeMinutes: 1,
     imageUrl: '/assets/images/monster.webp'
   }

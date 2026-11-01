@@ -20,8 +20,8 @@ async function getAllMenuItems(req, res) {
 
         items = await MenuItem.find(filter).sort({ category: 1, sku: 1 }).maxTimeMS(2000);
 
-        if ((items.length === 0 || items.length < fullCatalog.length) && !category) {
-          console.log('🌱 Syncing master catalog with latest soft drinks & energy drinks...');
+        if ((items.length === 0 || items.length !== fullCatalog.length) && !category) {
+          console.log(`🌱 Syncing master catalog with latest drinks & offerings (${items.length} -> ${fullCatalog.length})...`);
           for (const catItem of fullCatalog) {
             await MenuItem.findOneAndUpdate(
               { sku: catItem.sku },

@@ -14,12 +14,22 @@ async function startServer() {
   // Auto-seed menu if empty
   try {
     const MenuItem = require('./models/MenuItem');
+    const { fullCatalog } = require('./scripts/menuCatalogData');
     const count = await MenuItem.countDocuments();
     if (count === 0) {
       console.log('🌱 Menu collection empty. Auto-seeding catalog with soft drinks, energy drinks, water bottles, and cafe menu...');
-      const { fullCatalog } = require('./scripts/menuCatalogData');
       await MenuItem.insertMany(fullCatalog);
       console.log(`✅ Auto-seeded ${fullCatalog.length} coastal offerings!`);
+    } else if (count !== fullCatalog.length) {
+      console.log(`🌱 Syncing ${fullCatalog.length} master offerings to database (existing count: ${count})...`);
+      for (const catItem of fullCatalog) {
+        await MenuItem.findOneAndUpdate(
+          { sku: catItem.sku },
+          { $set: catItem },
+          { upsert: true, new: true }
+        );
+      }
+      console.log(`✅ Master catalog sync complete! Total items: ${fullCatalog.length}`);
     }
   } catch (seedErr) {
     console.warn(`ℹ️ [AnchorTrack] Initial catalog seeding skipped (Database pending): ${seedErr.message}`);
