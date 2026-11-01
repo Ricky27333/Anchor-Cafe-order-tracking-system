@@ -2,7 +2,11 @@ const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '../../data');
-const STORE_FILE = path.join(DATA_DIR, 'anchortrack_store.json');
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
+const STORE_FILE = isTestEnv
+  ? path.join(DATA_DIR, 'anchortrack_test_store.json')
+  : path.join(DATA_DIR, 'anchortrack_store.json');
+const BACKUP_FILE = path.join(DATA_DIR, 'anchortrack_store.backup.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -40,7 +44,13 @@ function loadStore() {
 
 function saveStore() {
   try {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf-8');
+    const dataStr = JSON.stringify(store, null, 2);
+    fs.writeFileSync(STORE_FILE, dataStr, 'utf-8');
+    if (!isTestEnv) {
+      try {
+        fs.writeFileSync(BACKUP_FILE, dataStr, 'utf-8');
+      } catch (be) {}
+    }
   } catch (err) {
     console.error('⚠️ [DataStore] Error persisting to disk:', err.message);
   }

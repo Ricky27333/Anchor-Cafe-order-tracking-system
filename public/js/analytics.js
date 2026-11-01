@@ -1234,7 +1234,17 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDownloadMonthlySheet.addEventListener('click', () => {
       const month = selectMonth ? selectMonth.value : (new Date().getMonth() + 1);
       const year = 2026;
-      showToast('📊 Downloading Monthly Google Sheet...', 'info');
+      showToast('📊 Downloading Multi-Tab Google Sheet (.xlsx)...', 'info');
+      window.location.href = `/api/reports/export/monthly-xlsx?year=${year}&month=${month}`;
+    });
+  }
+
+  const btnDownloadMonthlyCsv = document.getElementById('btnDownloadMonthlyCsv');
+  if (btnDownloadMonthlyCsv) {
+    btnDownloadMonthlyCsv.addEventListener('click', () => {
+      const month = selectMonth ? selectMonth.value : (new Date().getMonth() + 1);
+      const year = 2026;
+      showToast('📄 Downloading CSV Sheet...', 'info');
       window.location.href = `/api/reports/export/monthly-csv?year=${year}&month=${month}`;
     });
   }

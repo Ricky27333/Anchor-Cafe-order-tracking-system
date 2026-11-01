@@ -26,14 +26,17 @@
     </nav>
 
     <div class="header-actions">
-      <button class="btn-gold" id="btnDownloadMonthlySheet" title="Download month-wise total calculations as Google Sheet / Excel (.csv)">
-        <span>📊</span> Download Google Sheet
+      <button class="btn-gold" id="btnDownloadMonthlySheet" title="Download executive multi-tab Google Sheet / Excel Workbook (.xlsx)">
+        <span>📊</span> Download Google Sheet (.xlsx)
+      </button>
+      <button class="btn-outline" id="btnDownloadMonthlyCsv" title="Download simple comma-separated sheet (.csv)">
+        <span>📄</span> CSV
       </button>
       <button class="btn-outline" id="btnOpenAddExpenseModal" title="Record raw material purchase (Milk, Coffee, Ice, Packaging)">
-        <span>➕</span> Log Raw Material Expense
+        <span>➕</span> Log Expense
       </button>
       <button class="btn-outline" id="btnOpenZReport" title="Official Day-End Audit Slip">
-        📜 Day-End Closing (Z-Report)
+        📜 Z-Report
       </button>
     </div>
   </header>
@@ -563,6 +566,6 @@
 
   <!-- Scripts -->
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/analytics.js?v=20261101_v2"></script>
+  <script src="/js/analytics.js?v=20261101_v3"></script>
 </body>
 </html>

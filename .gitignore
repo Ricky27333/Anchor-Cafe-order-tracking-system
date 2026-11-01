@@ -7,3 +7,5 @@ yarn-debug.log*
 yarn-error.log*
 .coverage/
 data/anchortrack_store.json
+data/anchortrack_test_store.json
+data/anchortrack_store.backup.json

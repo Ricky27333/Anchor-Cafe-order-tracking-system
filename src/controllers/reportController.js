@@ -1,3 +1,4 @@
+const { generateMonthlyExcelWorkbook } = require('../services/excelReportGenerator');
 const Order = require('../models/Order');
 const Payment = require('../models/Payment');
 const DailyReport = require('../models/DailyReport');
@@ -709,9 +710,37 @@ async function exportMonthlyCsv(req, res) {
   }
 }
 
+
+/**
+ * Controller: GET /api/reports/export/monthly-xlsx?year=2026&month=11
+ * Generates an executive multi-tab Excel/Google Sheets workbook (.xlsx)
+ * with auto-fitted column widths, styled header rows, and pre-calculated totals
+ */
+async function exportMonthlyXlsx(req, res) {
+  try {
+    const now = new Date();
+    const year = parseInt(req.query.year, 10) || now.getFullYear();
+    const month = parseInt(req.query.month, 10) || (now.getMonth() + 1);
+
+    const data = await getMonthlyAnalyticsData(year, month);
+    const buffer = await generateMonthlyExcelWorkbook(data, year, month);
+
+    const safeMonthStr = String(month).padStart(2, '0');
+    const filename = `Anchor_Cafe_Monthly_Workbook_${year}_${safeMonthStr}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (err) {
+    console.error('Error exporting monthly XLSX workbook:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 module.exports = {
   getMonthlyReport,
   exportMonthlyCsv,
+  exportMonthlyXlsx,
   getDailySummary,
   closeDayReport,
   getMonthlyAnalyticsData,
