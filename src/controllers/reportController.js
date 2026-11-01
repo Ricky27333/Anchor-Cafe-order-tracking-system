@@ -557,6 +557,123 @@ async function resetRecords(req, res) {
 
 
 /**
+ * Controller: GET /api/reports/export/daily-ledger-csv?year=2026&month=11
+ * Generates an executive, RFC 4180 compliant single-table CSV document where
+ * EVERY row strictly shares the exact same 10 columns for 1:1 Excel/Google Sheets alignment:
+ * Date (DD-MMM-YYYY), Day of Week, Gross Sales, Raw Material Spend, Net Daily Profit,
+ * Margin %, Orders Count, Material Buys, Operating Status, and Managerial Notes.
+ */
+async function exportDailyLedgerCsv(req, res) {
+  try {
+    const now = new Date();
+    const year = parseInt(req.query.year, 10) || now.getFullYear();
+    const month = parseInt(req.query.month, 10) || (now.getMonth() + 1);
+
+    const data = await getMonthlyAnalyticsData(year, month);
+    const fin = data.monthlyFinancials || {};
+    const monthName = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+    function esc(val) {
+      if (val === null || val === undefined) return '""';
+      const str = String(val);
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+
+    const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthShortStr = monthsShort[month - 1];
+
+    const lines = [];
+
+    // Document Headers - padded to 10 columns
+    lines.push([esc('ANCHOR CAFE - COASTAL ORDER TRACKING & FINANCIAL SYSTEM'), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc('RAMAPURAM BEACH, CHIRALA (CHORAMANDAL COAST) | OWNER: anchorcafe01@gmail.com'), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc(`MONTHLY DAILY FINANCIAL & OPERATING LEDGER: ${monthName.toUpperCase()}`), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc(`Generated On: ${new Date().toLocaleString('en-IN')} | Database: MongoDB Core + Oracle XE 21c (ANCHOR_TRACK)`), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push('');
+
+    // Uniform 10-Column Table Header
+    const headers = [
+      'Date',
+      'Day of Week',
+      'Gross Sales (INR)',
+      'Raw Material Spend (INR)',
+      'Net Daily Profit (INR)',
+      'Profit Margin (%)',
+      'Orders Settled',
+      'Material Purchases',
+      'Operating Status',
+      'Managerial Decision & Notes'
+    ];
+    lines.push(headers.map(esc).join(','));
+
+    let totalGross = 0;
+    let totalExpense = 0;
+    let totalNet = 0;
+    let totalOrders = 0;
+    let totalBuys = 0;
+
+    (data.dailyLedger || []).forEach(d => {
+      const dayPad = String(d.day).padStart(2, '0');
+      const safeDate = `${dayPad}-${monthShortStr}-${year}`;
+      const sales = Number(d.grossSales || 0);
+      const expense = Number(d.rawMaterialExpenses || 0);
+      const net = Number(d.netProfit || 0);
+      const orders = Number(d.ordersCount || 0);
+      const buys = Number(d.expensesCount || 0);
+
+      totalGross += sales;
+      totalExpense += expense;
+      totalNet += net;
+      totalOrders += orders;
+      totalBuys += buys;
+
+      lines.push([
+        esc(safeDate),
+        esc(d.dayName || ''),
+        esc(sales.toFixed(2)),
+        esc(expense.toFixed(2)),
+        esc(net.toFixed(2)),
+        esc(`${d.marginPct || 0}%`),
+        esc(orders),
+        esc(buys),
+        esc(d.status || 'IDLE'),
+        esc(d.decision || 'No Activity')
+      ].join(','));
+    });
+
+    lines.push('');
+
+    // Uniform 10-Column Month Totals & Executive Verdict
+    const overallMargin = totalGross > 0 ? Math.round((totalNet / totalGross) * 100) : (totalExpense > 0 ? -100 : 0);
+    const overallVerdict = fin.verdict || (totalNet > 0 ? 'PROFITABLE' : (totalNet === 0 ? 'BREAK_EVEN' : 'DEFICIT'));
+
+    lines.push([
+      esc(`TOTALS / MONTH SUMMARY (${monthName})`),
+      esc(`${data.dailyLedger?.length || 0} Days Audited`),
+      esc(totalGross.toFixed(2)),
+      esc(totalExpense.toFixed(2)),
+      esc(totalNet.toFixed(2)),
+      esc(`${overallMargin}%`),
+      esc(totalOrders),
+      esc(totalBuys),
+      esc(overallVerdict),
+      esc(fin.recommendation || fin.reason || 'Complete monthly accounting reconciled')
+    ].join(','));
+
+    const csvContent = '\uFEFF' + lines.join('\r\n');
+    const safeMonthStr = String(month).padStart(2, '0');
+    const filename = `Anchor_Cafe_Daily_Ledger_${year}_${safeMonthStr}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvContent);
+  } catch (err) {
+    console.error('Error exporting daily ledger CSV:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+/**
  * Controller: GET /api/reports/export/monthly-csv?year=2026&month=11
  * Generates an executive, RFC 4180 compliant CSV document with UTF-8 BOM
  * that opens directly in Google Sheets / Microsoft Excel with all monthly
@@ -578,48 +695,56 @@ async function exportMonthlyCsv(req, res) {
       return `"${str.replace(/"/g, '""')}"`;
     }
 
+    const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthShortStr = monthsShort[month - 1];
+
     const lines = [];
 
+    // Helper to pad row to 11 columns
+    function pad11(arr) {
+      while (arr.length < 11) arr.push(esc(''));
+      return arr.join(',');
+    }
+
     // Title Block
-    lines.push([esc('ANCHOR CAFE - COASTAL ORDER TRACKING & FINANCIAL SYSTEM'), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
-    lines.push([esc('RAMAPURAM BEACH, CHIRALA (CHORAMANDAL COAST)'), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
-    lines.push([esc(`MONTHLY EXECUTIVE REVENUE & PROCUREMENT REPORT: ${monthName.toUpperCase()}`), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
-    lines.push([esc(`Generated On: ${new Date().toLocaleString('en-IN')}`), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
-    lines.push([esc('Database Sources: MongoDB Operational Core + Oracle XE 21c (ANCHOR_TRACK Schema)'), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push(pad11([esc('ANCHOR CAFE - COASTAL ORDER TRACKING & FINANCIAL SYSTEM')]));
+    lines.push(pad11([esc('RAMAPURAM BEACH, CHIRALA (CHORAMANDAL COAST) | OWNER: anchorcafe01@gmail.com')]));
+    lines.push(pad11([esc(`MONTHLY EXECUTIVE REVENUE & PROCUREMENT REPORT: ${monthName.toUpperCase()}`)]));
+    lines.push(pad11([esc(`Generated On: ${new Date().toLocaleString('en-IN')} | MongoDB + Oracle XE 21c`)]));
     lines.push('');
 
     // Section 1: Executive Summary P&L
-    lines.push([esc('=============================='), esc('=============================='), esc(''), esc('')].join(','));
-    lines.push([esc('1. MONTHLY EXECUTIVE P&L FINANCIAL SUMMARY'), esc(''), esc(''), esc('')].join(','));
-    lines.push([esc('=============================='), esc('=============================='), esc(''), esc('')].join(','));
-    lines.push([esc('Financial Metric'), esc('Amount (INR) / Value'), esc('Notes / Breakdown')].join(','));
-    lines.push([esc('Total Gross Customer Sales'), esc(fin.totalGrossSales || 0), esc('Total billings across all completed orders')].join(','));
-    lines.push([esc('Total Raw Material Spend'), esc(fin.totalExpenses || 0), esc('Procurement for Milk, Coffee, Ice, Packaging & Produce')].join(','));
-    lines.push([esc('Net Operating Cash Profit'), esc(fin.netOperatingProfit || 0), esc('Gross Sales minus Raw Material Expenditures')].join(','));
-    lines.push([esc('Operating Profit Margin (%)'), esc(`${fin.monthlyMarginPct || 0}%`), esc(fin.verdict || 'BREAK_EVEN')].join(','));
-    lines.push([esc('Total Customer Orders Placed'), esc(data.summaryTotals?.[0]?.totalOrders || 0), esc('Completed and settled order count')].join(','));
-    lines.push([esc('Total Cafe Offerings Sold'), esc(data.summaryTotals?.[0]?.totalItemsSold || 0), esc('Cumulative units prepared and served')].join(','));
-    lines.push([esc('Average Order Value (AOV)'), esc(Math.round(data.summaryTotals?.[0]?.averageOrderValue || 0)), esc('Average spend per customer table')].join(','));
-    lines.push([esc('Daily Raw Material Burn Rate'), esc(fin.avgDailyExpense || 0), esc('Average procurement spend per day')].join(','));
+    lines.push(pad11([esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('1. MONTHLY EXECUTIVE P&L FINANCIAL SUMMARY')]));
+    lines.push(pad11([esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('Financial Metric'), esc('Amount (INR) / Value'), esc('Notes / Breakdown')]));
+    lines.push(pad11([esc('Total Gross Customer Sales'), esc((fin.totalGrossSales || 0).toFixed(2)), esc('Total billings across all completed orders')]));
+    lines.push(pad11([esc('Total Raw Material Spend'), esc((fin.totalExpenses || 0).toFixed(2)), esc('Procurement for Milk, Coffee, Ice, Packaging & Produce')]));
+    lines.push(pad11([esc('Net Operating Cash Profit'), esc((fin.netOperatingProfit || 0).toFixed(2)), esc('Gross Sales minus Raw Material Expenditures')]));
+    lines.push(pad11([esc('Operating Profit Margin (%)'), esc(`${fin.monthlyMarginPct || 0}%`), esc(fin.verdict || 'BREAK_EVEN')]));
+    lines.push(pad11([esc('Total Customer Orders Placed'), esc(data.summaryTotals?.[0]?.totalOrders || 0), esc('Completed and settled order count')]));
+    lines.push(pad11([esc('Total Cafe Offerings Sold'), esc(data.summaryTotals?.[0]?.totalItemsSold || 0), esc('Cumulative units prepared and served')]));
+    lines.push(pad11([esc('Average Order Value (AOV)'), esc(Math.round(data.summaryTotals?.[0]?.averageOrderValue || 0)), esc('Average spend per customer table')]));
+    lines.push(pad11([esc('Daily Raw Material Burn Rate'), esc(fin.avgDailyExpense || 0), esc('Average procurement spend per day')]));
     lines.push('');
 
     // Section 2: Payment Settlement Breakdown
-    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('')].join(','));
-    lines.push([esc('2. PAYMENT METHOD RECONCILIATION (UPI vs CASH)'), esc(''), esc(''), esc('')].join(','));
-    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('')].join(','));
-    lines.push([esc('Payment Mode'), esc('Total Settled (INR)'), esc('Transactions Count'), esc('% of Total Revenue')].join(','));
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('2. PAYMENT METHOD RECONCILIATION (UPI vs CASH)')]));
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('Payment Mode'), esc('Total Settled (INR)'), esc('Transactions Count'), esc('% of Total Revenue')]));
     const totalRev = fin.totalGrossSales || 1;
     (data.paymentBreakdown || []).forEach(p => {
       const pct = Math.round(((p.methodRevenue || 0) / totalRev) * 100);
-      lines.push([esc(p._id || 'OTHER'), esc(p.methodRevenue || 0), esc(p.transactionCount || 0), esc(`${pct}%`)].join(','));
+      lines.push(pad11([esc(p._id || 'OTHER'), esc((p.methodRevenue || 0).toFixed(2)), esc(p.transactionCount || 0), esc(`${pct}%`)]));
     });
     lines.push('');
 
     // Section 3: Day-by-Day Financial Tracking Ledger
-    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')].join(','));
-    lines.push([esc('3. DAY-BY-DAY FINANCIAL & OPERATING LEDGER'), esc(''), esc(''), esc('')].join(','));
-    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')].join(','));
-    lines.push([
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('3. DAY-BY-DAY FINANCIAL & OPERATING LEDGER')]));
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([
       esc('Day'),
       esc('Date'),
       esc('Weekday'),
@@ -631,30 +756,32 @@ async function exportMonthlyCsv(req, res) {
       esc('Material Buys Count'),
       esc('Day Operating Status'),
       esc('Managerial Decision & Notes')
-    ].join(','));
+    ]));
 
     (data.dailyLedger || []).forEach(d => {
-      lines.push([
+      const dayPad = String(d.day).padStart(2, '0');
+      const safeFormattedDate = `${dayPad}-${monthShortStr}-${year}`;
+      lines.push(pad11([
         esc(d.day),
-        esc(d.date),
+        esc(safeFormattedDate),
         esc(d.dayName),
-        esc(d.grossSales || 0),
-        esc(d.rawMaterialExpenses || 0),
-        esc(d.netProfit || 0),
+        esc((d.grossSales || 0).toFixed(2)),
+        esc((d.rawMaterialExpenses || 0).toFixed(2)),
+        esc((d.netProfit || 0).toFixed(2)),
         esc(`${d.marginPct || 0}%`),
         esc(d.ordersCount || 0),
         esc(d.expensesCount || 0),
         esc(d.status || 'IDLE'),
         esc(d.decision || 'No Activity')
-      ].join(','));
+      ]));
     });
     lines.push('');
 
     // Section 4: Itemized Raw Material Procurement History
-    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')].join(','));
-    lines.push([esc('4. ITEMIZED RAW MATERIAL PROCUREMENT & EXPENSE LEDGER'), esc(''), esc(''), esc('')].join(','));
-    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')].join(','));
-    lines.push([
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('4. ITEMIZED RAW MATERIAL PROCUREMENT & EXPENSE LEDGER')]));
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([
       esc('Purchase Date'),
       esc('Raw Material / Item Description'),
       esc('Category'),
@@ -662,44 +789,44 @@ async function exportMonthlyCsv(req, res) {
       esc('Payment Source / Deducted From'),
       esc('Supplier / Purchase Notes'),
       esc('Recorded By')
-    ].join(','));
+    ]));
 
     (data.rawMaterialExpenses || []).forEach(e => {
       const dStr = new Date(e.expenseDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-      lines.push([
+      lines.push(pad11([
         esc(dStr),
         esc(e.title || 'Untitled Material'),
         esc(e.category || 'MISC_EXPENSE'),
-        esc(e.amount || 0),
+        esc((e.amount || 0).toFixed(2)),
         esc(e.deductedFrom || 'TODAYS_SALES'),
         esc(e.notes || '—'),
         esc(e.recordedBy || 'Counter 1')
-      ].join(','));
+      ]));
     });
     lines.push('');
 
     // Section 5: Category-Wise Sales Velocity
-    lines.push([esc('=============================='), esc('=============================='), esc('==============================')].join(','));
-    lines.push([esc('5. CATEGORY-WISE SALES VELOCITY'), esc(''), esc('')].join(','));
-    lines.push([esc('=============================='), esc('=============================='), esc('==============================')].join(','));
-    lines.push([esc('Menu Category'), esc('Units Sold'), esc('Total Revenue (INR)')].join(','));
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('5. CATEGORY-WISE SALES VELOCITY')]));
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('Menu Category'), esc('Units Sold'), esc('Total Revenue (INR)')]));
     (data.categoryBreakdown || []).forEach(c => {
-      lines.push([esc(c._id || 'Other'), esc(c.count || 0), esc(c.revenue || 0)].join(','));
+      lines.push(pad11([esc(c._id || 'Other'), esc(c.count || 0), esc((c.revenue || 0).toFixed(2))]));
     });
     lines.push('');
 
     // Section 6: Top 10 Bestsellers
-    lines.push([esc('=============================='), esc('=============================='), esc('==============================')].join(','));
-    lines.push([esc('6. TOP 10 BESTSELLING COASTAL OFFERINGS'), esc(''), esc('')].join(','));
-    lines.push([esc('=============================='), esc('=============================='), esc('==============================')].join(','));
-    lines.push([esc('Item Title'), esc('Units Sold'), esc('Revenue Generated (INR)')].join(','));
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('6. TOP 10 BESTSELLING COASTAL OFFERINGS')]));
+    lines.push(pad11([esc('=============================='), esc('=============================='), esc('==============================')]));
+    lines.push(pad11([esc('Item Title'), esc('Units Sold'), esc('Revenue Generated (INR)')]));
     (data.topBestsellers || []).forEach(b => {
-      lines.push([esc(b._id || 'Unknown'), esc(b.quantitySold || 0), esc(b.itemRevenue || 0)].join(','));
+      lines.push(pad11([esc(b._id || 'Unknown'), esc(b.quantitySold || 0), esc((b.itemRevenue || 0).toFixed(2))]));
     });
 
     const csvContent = '\uFEFF' + lines.join('\r\n');
     const safeMonthStr = String(month).padStart(2, '0');
-    const filename = `Anchor_Cafe_Monthly_Sheet_${year}_${safeMonthStr}.csv`;
+    const filename = `Anchor_Cafe_Monthly_Master_${year}_${safeMonthStr}.csv`;
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -739,6 +866,7 @@ async function exportMonthlyXlsx(req, res) {
 
 module.exports = {
   getMonthlyReport,
+  exportDailyLedgerCsv,
   exportMonthlyCsv,
   exportMonthlyXlsx,
   getDailySummary,

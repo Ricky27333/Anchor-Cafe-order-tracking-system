@@ -549,3 +549,173 @@
   color: #EE6C4D;
 }
 
+/* Interactive Month & Format Export Modal */
+.export-modal-dialog {
+  background: linear-gradient(135deg, #091A2F 0%, #061120 100%);
+  border: 1px solid rgba(201, 168, 106, 0.4);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+  border-radius: var(--radius-md);
+  color: var(--color-sand);
+}
+
+.month-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.65rem;
+}
+
+.month-pill-label {
+  cursor: pointer;
+  position: relative;
+  display: block;
+}
+
+.month-pill-label input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.month-pill-card {
+  background: rgba(14, 38, 64, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.85rem;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.month-pill-label input[type="radio"]:checked + .month-pill-card {
+  background: rgba(201, 168, 106, 0.15);
+  border-color: var(--color-gold);
+  box-shadow: 0 0 12px rgba(201, 168, 106, 0.3);
+}
+
+.pill-badge-live, .pill-badge-data, .pill-badge-custom {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  display: inline-block;
+  margin-bottom: 0.35rem;
+}
+.pill-badge-live {
+  background: #2D6A4F;
+  color: #D8F3DC;
+}
+.pill-badge-data {
+  background: #E07A5F;
+  color: #FFF;
+}
+.pill-badge-custom {
+  background: #3D5A80;
+  color: #E0FBFC;
+}
+
+.pill-month-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #FFF;
+}
+
+.pill-month-desc {
+  font-size: 0.72rem;
+  color: var(--color-foam);
+  opacity: 0.8;
+  margin-top: 0.15rem;
+}
+
+/* Report Format Options */
+.report-format-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.format-option-row {
+  cursor: pointer;
+  position: relative;
+  display: block;
+}
+
+.format-option-row input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.format-option-card {
+  background: rgba(14, 38, 64, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.format-option-row input[type="radio"]:checked + .format-option-card {
+  background: rgba(201, 168, 106, 0.12);
+  border-color: var(--color-gold);
+  box-shadow: 0 0 10px rgba(201, 168, 106, 0.25);
+}
+
+.format-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.file-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+.csv-tag {
+  background: #1B4332;
+  color: #74C69D;
+  border: 1px solid #2D6A4F;
+}
+.xlsx-tag {
+  background: #1E3D59;
+  color: #90E0EF;
+  border: 1px solid #0077B6;
+}
+
+.best-tag, .pro-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 10px;
+  margin-left: auto;
+}
+.best-tag {
+  background: rgba(201, 168, 106, 0.25);
+  color: var(--color-gold);
+  border: 1px solid rgba(201, 168, 106, 0.5);
+}
+.pro-tag {
+  background: rgba(72, 202, 228, 0.2);
+  color: #48CAE4;
+  border: 1px solid rgba(72, 202, 228, 0.4);
+}
+
+.format-option-card p {
+  font-size: 0.75rem;
+  color: var(--color-foam);
+  opacity: 0.85;
+  margin: 0.35rem 0 0 0;
+  line-height: 1.35;
+}
+
+.export-guarantee-banner {
+  background: rgba(201, 168, 106, 0.08);
+  border: 1px solid rgba(201, 168, 106, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.9rem;
+  font-size: 0.78rem;
+  color: var(--color-foam);
+}
+

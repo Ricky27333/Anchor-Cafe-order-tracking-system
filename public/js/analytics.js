@@ -1228,35 +1228,142 @@ document.addEventListener('DOMContentLoaded', () => {
     selectMonth.addEventListener('change', fetchMonthlyAnalytics);
   }
 
-  // --- Google Sheets / Excel Monthly Export Listener ---
+  // --- Interactive Google Sheets & CSV Export Modal Logic ---
+  const modalExportReports = document.getElementById('modalExportReports');
+  const btnCloseExportModal = document.getElementById('btnCloseExportModal');
+  const btnCancelExportModal = document.getElementById('btnCancelExportModal');
+  const btnConfirmExportDownload = document.getElementById('btnConfirmExportDownload');
+  const exportCustomMonthWrap = document.getElementById('exportCustomMonthWrap');
+  const exportCustomMonth = document.getElementById('exportCustomMonth');
+  const exportCustomYear = document.getElementById('exportCustomYear');
+
+  function openExportModal(defaultFormat = 'daily_ledger_csv') {
+    if (!modalExportReports) return;
+
+    // 1. Sync format choice
+    const formatRadios = document.querySelectorAll('input[name="exportReportFormat"]');
+    formatRadios.forEach(r => {
+      r.checked = (r.value === defaultFormat);
+    });
+
+    // 2. Sync month choice from dashboard dropdown
+    const activeDashboardMonth = selectMonth ? selectMonth.value : '11';
+    
+    if (activeDashboardMonth === '11') {
+      const novRadio = document.querySelector('input[name="exportMonthChoice"][value="11"]');
+      if (novRadio) novRadio.checked = true;
+      if (exportCustomMonthWrap) exportCustomMonthWrap.style.display = 'none';
+    } else if (activeDashboardMonth === '10') {
+      const octRadio = document.querySelector('input[name="exportMonthChoice"][value="10"]');
+      if (octRadio) octRadio.checked = true;
+      if (exportCustomMonthWrap) exportCustomMonthWrap.style.display = 'none';
+    } else {
+      const customRadio = document.querySelector('input[name="exportMonthChoice"][value="custom"]');
+      if (customRadio) customRadio.checked = true;
+      if (exportCustomMonthWrap) {
+        exportCustomMonthWrap.style.display = 'flex';
+        if (exportCustomMonth) exportCustomMonth.value = activeDashboardMonth;
+      }
+    }
+
+    modalExportReports.classList.add('open');
+  }
+
+  function closeExportModal() {
+    if (modalExportReports) {
+      modalExportReports.classList.remove('open');
+    }
+  }
+
+  // Toggle custom month/year inputs when 'custom' is selected
+  const monthRadios = document.querySelectorAll('input[name="exportMonthChoice"]');
+  monthRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (exportCustomMonthWrap) {
+        exportCustomMonthWrap.style.display = (e.target.value === 'custom') ? 'flex' : 'none';
+      }
+    });
+  });
+
+  // Open modal from header and section buttons
   const btnDownloadMonthlySheet = document.getElementById('btnDownloadMonthlySheet');
   if (btnDownloadMonthlySheet) {
-    btnDownloadMonthlySheet.addEventListener('click', () => {
-      const month = selectMonth ? selectMonth.value : (new Date().getMonth() + 1);
-      const year = 2026;
-      showToast('📊 Downloading Multi-Tab Google Sheet (.xlsx)...', 'info');
-      window.location.href = `/api/reports/export/monthly-xlsx?year=${year}&month=${month}`;
+    btnDownloadMonthlySheet.addEventListener('click', (e) => {
+      e.preventDefault();
+      openExportModal('monthly_xlsx');
     });
   }
 
   const btnDownloadMonthlyCsv = document.getElementById('btnDownloadMonthlyCsv');
   if (btnDownloadMonthlyCsv) {
-    btnDownloadMonthlyCsv.addEventListener('click', () => {
-      const month = selectMonth ? selectMonth.value : (new Date().getMonth() + 1);
-      const year = 2026;
-      showToast('📄 Downloading CSV Sheet...', 'info');
-      window.location.href = `/api/reports/export/monthly-csv?year=${year}&month=${month}`;
+    btnDownloadMonthlyCsv.addEventListener('click', (e) => {
+      e.preventDefault();
+      openExportModal('daily_ledger_csv');
     });
   }
 
   const btnDownloadMaterialSheet = document.getElementById('btnDownloadMaterialSheet');
   if (btnDownloadMaterialSheet) {
-    btnDownloadMaterialSheet.addEventListener('click', () => {
-      const month = selectMonth ? selectMonth.value : (new Date().getMonth() + 1);
-      const year = 2026;
-      const scope = rawMaterialScope || 'month';
-      showToast('📥 Downloading Raw Materials Google Sheet...', 'info');
-      window.location.href = `/api/expenses/export/csv?year=${year}&month=${month}&scope=${scope}`;
+    btnDownloadMaterialSheet.addEventListener('click', (e) => {
+      e.preventDefault();
+      openExportModal('materials_csv');
+    });
+  }
+
+  if (btnCloseExportModal) btnCloseExportModal.addEventListener('click', closeExportModal);
+  if (btnCancelExportModal) btnCancelExportModal.addEventListener('click', closeExportModal);
+
+  // Close on backdrop click
+  if (modalExportReports) {
+    modalExportReports.addEventListener('click', (e) => {
+      if (e.target === modalExportReports) closeExportModal();
+    });
+  }
+
+  // Trigger export download on confirm
+  if (btnConfirmExportDownload) {
+    btnConfirmExportDownload.addEventListener('click', () => {
+      // 1. Determine selected month & year
+      const selectedMonthChoice = document.querySelector('input[name="exportMonthChoice"]:checked')?.value || '11';
+      let exportMonth = 11;
+      let exportYear = 2026;
+
+      if (selectedMonthChoice === '11') {
+        exportMonth = 11;
+        exportYear = 2026;
+      } else if (selectedMonthChoice === '10') {
+        exportMonth = 10;
+        exportYear = 2026;
+      } else if (selectedMonthChoice === 'custom') {
+        exportMonth = exportCustomMonth ? exportCustomMonth.value : 11;
+        exportYear = exportCustomYear ? exportCustomYear.value : 2026;
+      }
+
+      // 2. Determine format
+      const selectedFormat = document.querySelector('input[name="exportReportFormat"]:checked')?.value || 'daily_ledger_csv';
+      let downloadUrl = '';
+      let toastMsg = '';
+
+      if (selectedFormat === 'daily_ledger_csv') {
+        downloadUrl = `/api/reports/export/daily-ledger-csv?year=${exportYear}&month=${exportMonth}`;
+        toastMsg = `📊 Downloading Clean Daily Financial Ledger CSV (${exportMonth}/${exportYear})...`;
+      } else if (selectedFormat === 'monthly_xlsx') {
+        downloadUrl = `/api/reports/export/monthly-xlsx?year=${exportYear}&month=${exportMonth}`;
+        toastMsg = `📗 Downloading Multi-Tab Google Sheet (.xlsx) (${exportMonth}/${exportYear})...`;
+      } else if (selectedFormat === 'materials_csv') {
+        downloadUrl = `/api/expenses/export/csv?year=${exportYear}&month=${exportMonth}&scope=month`;
+        toastMsg = `🛒 Downloading Raw Material Purchases Ledger CSV (${exportMonth}/${exportYear})...`;
+      } else if (selectedFormat === 'master_csv') {
+        downloadUrl = `/api/reports/export/monthly-csv?year=${exportYear}&month=${exportMonth}`;
+        toastMsg = `📑 Downloading Comprehensive Master Audit CSV (${exportMonth}/${exportYear})...`;
+      }
+
+      showToast(toastMsg, 'info');
+      closeExportModal();
+
+      setTimeout(() => {
+        window.location.href = downloadUrl;
+      }, 150);
     });
   }
 

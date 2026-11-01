@@ -561,11 +561,167 @@
     </div>
   </div>
 
+  <!-- MODAL: Export Financial Records & Google Sheets (Interactive Month & Format Selection) -->
+  <div class="modal-overlay" id="modalExportReports">
+    <div class="modal-content export-modal-dialog" style="max-width: 640px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <span style="font-size: 1.5rem;">📥</span>
+          <div>
+            <h3 style="margin: 0; color: var(--color-gold); font-size: 1.15rem;">Export Financial Records &amp; Google Sheets</h3>
+            <p style="margin: 0.15rem 0 0; font-size: 0.78rem; color: var(--color-foam); opacity: 0.85;">Anchor Cafe &bull; Ramapuram Beach, Chirala &bull; anchorcafe01@gmail.com</p>
+          </div>
+        </div>
+        <button class="modal-close" id="btnCloseExportModal" aria-label="Close export dialog">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;">
+        
+        <!-- STEP 1: Select Month -->
+        <div class="export-step-box">
+          <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-gold); margin-bottom: 0.6rem; text-transform: uppercase; letter-spacing: 0.5px;">
+            1. Select Reporting Month:
+          </label>
+          <div class="month-selection-grid">
+            <label class="month-pill-label" id="pillLabelCurrent">
+              <input type="radio" name="exportMonthChoice" value="11" checked>
+              <div class="month-pill-card">
+                <div class="pill-badge-live">LIVE</div>
+                <div class="pill-month-name">November 2026</div>
+                <div class="pill-month-desc">Current Active Month</div>
+              </div>
+            </label>
+
+            <label class="month-pill-label" id="pillLabelPrevious">
+              <input type="radio" name="exportMonthChoice" value="10">
+              <div class="month-pill-card">
+                <div class="pill-badge-data">PAST DATA</div>
+                <div class="pill-month-name">October 2026</div>
+                <div class="pill-month-desc">Oct 30 &amp; 31 Test Records</div>
+              </div>
+            </label>
+
+            <label class="month-pill-label" id="pillLabelCustom">
+              <input type="radio" name="exportMonthChoice" value="custom">
+              <div class="month-pill-card">
+                <div class="pill-badge-custom">CUSTOM</div>
+                <div class="pill-month-name">Any Month / Year</div>
+                <div class="pill-month-desc">Pick historical period</div>
+              </div>
+            </label>
+          </div>
+
+          <!-- Custom Month/Year dropdown (appears when 'custom' selected) -->
+          <div id="exportCustomMonthWrap" style="display: none; margin-top: 0.75rem; background: rgba(0,0,0,0.25); padding: 0.6rem 0.8rem; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); align-items: center; gap: 0.6rem;">
+            <label for="exportCustomMonth" style="font-size: 0.8rem; color: var(--color-foam); font-weight: 600;">Month:</label>
+            <select id="exportCustomMonth" class="cart-input" style="flex: 1; padding: 0.4rem 0.6rem; font-weight: 600;">
+              <option value="11">November</option>
+              <option value="10">October</option>
+              <option value="9">September</option>
+              <option value="8">August</option>
+              <option value="7">July</option>
+              <option value="6">June</option>
+              <option value="5">May</option>
+              <option value="4">April</option>
+              <option value="3">March</option>
+              <option value="2">February</option>
+              <option value="1">January</option>
+            </select>
+            <label for="exportCustomYear" style="font-size: 0.8rem; color: var(--color-foam); font-weight: 600;">Year:</label>
+            <select id="exportCustomYear" class="cart-input" style="width: 100px; padding: 0.4rem 0.6rem; font-weight: 600;">
+              <option value="2026" selected>2026</option>
+              <option value="2025">2025</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- STEP 2: Select Report Format & Organization -->
+        <div class="export-step-box">
+          <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--color-gold); margin-bottom: 0.6rem; text-transform: uppercase; letter-spacing: 0.5px;">
+            2. Select Report Organization &amp; Format:
+          </label>
+          <div class="report-format-options">
+            
+            <!-- Option 1: Clean Single Table CSV -->
+            <label class="format-option-row">
+              <input type="radio" name="exportReportFormat" value="daily_ledger_csv" checked>
+              <div class="format-option-card">
+                <div class="format-card-top">
+                  <span class="file-tag csv-tag">CSV</span>
+                  <strong>📊 Daily Financial Ledger (Clean 1:1 Table)</strong>
+                  <span class="best-tag">Cleanest CSV</span>
+                </div>
+                <p>Pure single table with strictly aligned columns: Date (DD-MMM-YYYY), Day, Gross Sales, Raw Material Spend, Net Profit, Orders, and Status. Never overflows or displays ###### in Excel.</p>
+              </div>
+            </label>
+
+            <!-- Option 2: Executive Multi-Tab XLSX -->
+            <label class="format-option-row">
+              <input type="radio" name="exportReportFormat" value="monthly_xlsx">
+              <div class="format-option-card">
+                <div class="format-card-top">
+                  <span class="file-tag xlsx-tag">XLSX</span>
+                  <strong>📗 Executive Multi-Tab Google Sheet / Excel Workbook</strong>
+                  <span class="pro-tag">Multi-Tab</span>
+                </div>
+                <p>4 separate worksheets: Executive P&amp;L, Daily Ledger, Raw Material Purchases, and Sales Velocity. Styled bold headers, ₹ currency formats, and live Excel formulas.</p>
+              </div>
+            </label>
+
+            <!-- Option 3: Raw Material Purchases CSV -->
+            <label class="format-option-row">
+              <input type="radio" name="exportReportFormat" value="materials_csv">
+              <div class="format-option-card">
+                <div class="format-card-top">
+                  <span class="file-tag csv-tag">CSV</span>
+                  <strong>🛒 Raw Material Procurement Ledger (Itemized Purchases)</strong>
+                </div>
+                <p>Itemized supply list: Milk, Coffee, Ice, Packaging, Cups &amp; Produce with exact purchase dates, amounts, suppliers, payment methods, and total expenditure.</p>
+              </div>
+            </label>
+
+            <!-- Option 4: Comprehensive Master CSV -->
+            <label class="format-option-row">
+              <input type="radio" name="exportReportFormat" value="master_csv">
+              <div class="format-option-card">
+                <div class="format-card-top">
+                  <span class="file-tag csv-tag">CSV</span>
+                  <strong>📑 All-in-One Master Report (Complete Audit CSV)</strong>
+                </div>
+                <p>All monthly operational sections in a single padded CSV audit file with unified column widths.</p>
+              </div>
+            </label>
+
+          </div>
+        </div>
+
+        <!-- Account Attribution & Persistence Guarantee -->
+        <div class="export-guarantee-banner">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span>🔒</span>
+            <span>Account: <strong style="color: var(--color-gold);">anchorcafe01@gmail.com</strong> &bull; Zero-Loss Persistent Database</span>
+          </div>
+          <div style="font-size: 0.72rem; opacity: 0.8; margin-top: 0.2rem;">
+            All past test data and live transactions are permanently stored and protected from resets.
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="padding: 1rem 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--glass-border);">
+        <button class="btn-outline" id="btnCancelExportModal">Cancel</button>
+        <button class="btn-gold" id="btnConfirmExportDownload" style="font-weight: 700; padding: 0.55rem 1.5rem;">
+          ⬇️ Download Report
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/analytics.js?v=20261101_v3"></script>
+  <script src="/js/analytics.js?v=20261101_v4"></script>
 </body>
 </html>
