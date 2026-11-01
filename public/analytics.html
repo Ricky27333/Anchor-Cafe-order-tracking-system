@@ -47,9 +47,17 @@
       <div class="dashboard-actions">
         <label for="selectMonth" style="font-size: 0.85rem; color: var(--color-foam); font-weight: 600;">Reporting Month:</label>
         <select id="selectMonth" class="cart-input" style="width: auto; padding: 0.45rem 1rem; font-weight: 700;">
+          <option value="11" selected>November 2026</option>
           <option value="10">October 2026</option>
           <option value="9">September 2026</option>
           <option value="8">August 2026</option>
+          <option value="7">July 2026</option>
+          <option value="6">June 2026</option>
+          <option value="5">May 2026</option>
+          <option value="4">April 2026</option>
+          <option value="3">March 2026</option>
+          <option value="2">February 2026</option>
+          <option value="1">January 2026</option>
         </select>
 
         <div class="date-filter-box" style="display: flex; align-items: center; gap: 0.45rem; background: rgba(0, 0, 0, 0.35); padding: 0.35rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--glass-border);">
@@ -212,39 +220,89 @@
       </div>
     </section>
 
-    <!-- SECTION: Raw Material Expenditure Ledger (What Expenditure I Spend for the Cafe) -->
-    <section class="records-section coastal-card" style="margin-bottom: 2rem;">
+    <!-- SECTION: Raw Material Spending Intelligence & Complete Purchase History -->
+    <section class="records-section coastal-card" style="margin-bottom: 2rem;" id="rawMaterialModule">
       <div class="card-header-bar">
         <div>
-          <h2>🛒 Raw Material &amp; Cafe Expenditure Records</h2>
+          <h2>🛒 Raw Material Spending Intelligence &amp; Purchase History</h2>
           <p style="font-size: 0.85rem; color: var(--color-foam); opacity: 0.85; margin-top: 0.2rem;">
-            Record purchases for Milk, Coffee beans, Syrups, Ice, Cups, Produce &amp; Cafe supplies with manual Add, Edit &amp; Delete
+            Track which month how much money is spent on what raw material, inspect repeat material costs, and search full previous purchase history in a single module
           </p>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
           <button class="btn-gold" id="btnTableAddExpense" style="padding: 0.45rem 1rem; font-size: 0.85rem;">
-            ➕ Add Material Expense
+            ➕ Log Raw Material Expense
           </button>
         </div>
       </div>
 
-      <!-- Category Filter Pills & Summary -->
-      <div class="expense-filter-bar">
-        <div class="filter-pills" id="expenseCategoryPills">
-          <button class="pill-btn active" data-cat="all">All Purchases (<span id="countAllExp">0</span>)</button>
-          <button class="pill-btn" data-cat="MILK_DAIRY">🥛 Milk &amp; Dairy</button>
-          <button class="pill-btn" data-cat="ICE_GAS">🧊 Ice &amp; Gas</button>
-          <button class="pill-btn" data-cat="BEVERAGE_STOCK">☕ Coffee &amp; Syrups</button>
-          <button class="pill-btn" data-cat="PACKAGING">📦 Packaging &amp; Cups</button>
-          <button class="pill-btn" data-cat="GROCERIES_PRODUCE">🛒 Groceries &amp; Fruit</button>
-          <button class="pill-btn" data-cat="MISC_EXPENSE">🔧 Misc</button>
-        </div>
-        <div class="expense-total-badge">
-          Filtered Spend: <strong id="filteredExpenseTotal">₹0</strong>
+      <!-- 1. Month-over-Month Spending Trends Ribbon (Click to switch month) -->
+      <div style="margin-bottom: 1.25rem;">
+        <span style="font-size: 0.8rem; color: var(--color-gold); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 0.5rem;">
+          📊 Month-by-Month Raw Material Spend Trends (Click any month to inspect):
+        </span>
+        <div class="month-trends-ribbon" id="materialMonthTrendsRibbon" style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem;">
+          <!-- Dynamically populated with 12 months -->
         </div>
       </div>
 
-      <!-- Raw Material Table -->
+      <!-- 2. Dual Intelligence: Category Spend vs Itemized Material Breakdown -->
+      <div class="material-intelligence-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
+        <!-- Card A: Category Spend Breakdown -->
+        <div style="background: rgba(10, 22, 38, 0.7); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; border-bottom: 1px dashed rgba(201,168,106,0.25); padding-bottom: 0.5rem;">
+            <h3 style="font-size: 0.95rem; color: var(--color-gold); margin: 0;">📦 Spend by Material Category</h3>
+            <span id="labelCurrentMonthCategorySpend" style="font-size: 0.8rem; font-weight: 700; color: #EE6C4D;">₹0 Total</span>
+          </div>
+          <div id="materialCategoryProgressList" style="display: flex; flex-direction: column; gap: 0.65rem;">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Card B: Itemized Raw Material Breakdown (What raw material cost how much) -->
+        <div style="background: rgba(10, 22, 38, 0.7); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; border-bottom: 1px dashed rgba(201,168,106,0.25); padding-bottom: 0.5rem;">
+            <h3 style="font-size: 0.95rem; color: var(--color-gold); margin: 0;">🏷️ Itemized Raw Material Spend</h3>
+            <span style="font-size: 0.75rem; color: var(--color-foam); opacity: 0.8;">Ranked by Spend</span>
+          </div>
+          <div id="materialItemizedSummaryList" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Search & Scope Filter Bar -->
+      <div style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+          <!-- Search box -->
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 250px;">
+            <input type="text" id="inputSearchRawMaterial" class="cart-input" placeholder="🔍 Search previous purchases (e.g. Milk, Lemon, Ice, Coffee, Cups, Amul)..." style="width: 100%; padding: 0.5rem 0.85rem; font-size: 0.88rem; background: #0A1626; border: 1px solid var(--color-gold);">
+          </div>
+          <!-- Scope Toggle -->
+          <div style="display: flex; gap: 0.35rem; align-items: center;">
+            <button class="pill-btn active" id="btnScopeSelectedMonth" title="Show only selected month purchases">📅 Selected Month (<span id="countSelectedMonthExp">0</span>)</button>
+            <button class="pill-btn" id="btnScopeAllHistory" title="Search across all previous historical purchases">📚 All-Time History (<span id="countAllHistoryExp">0</span>)</button>
+          </div>
+        </div>
+
+        <!-- Category Filter Pills & Summary -->
+        <div class="expense-filter-bar" style="margin: 0; padding: 0;">
+          <div class="filter-pills" id="expenseCategoryPills">
+            <button class="pill-btn active" data-cat="all">All Items (<span id="countAllExp">0</span>)</button>
+            <button class="pill-btn" data-cat="MILK_DAIRY">🥛 Milk &amp; Dairy</button>
+            <button class="pill-btn" data-cat="ICE_GAS">🧊 Ice &amp; Gas</button>
+            <button class="pill-btn" data-cat="BEVERAGE_STOCK">☕ Coffee &amp; Syrups</button>
+            <button class="pill-btn" data-cat="PACKAGING">📦 Packaging &amp; Cups</button>
+            <button class="pill-btn" data-cat="GROCERIES_PRODUCE">🛒 Groceries &amp; Fruit</button>
+            <button class="pill-btn" data-cat="MISC_EXPENSE">🔧 Misc</button>
+          </div>
+          <div class="expense-total-badge">
+            Filtered Spend: <strong id="filteredExpenseTotal">₹0</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Raw Material Purchase History Table -->
       <div class="table-responsive-container">
         <table class="data-table" id="rawMaterialTable">
           <thead>
@@ -499,6 +557,6 @@
 
   <!-- Scripts -->
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/analytics.js"></script>
+  <script src="/js/analytics.js?v=20261101_v2"></script>
 </body>
 </html>

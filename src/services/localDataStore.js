@@ -105,6 +105,19 @@ module.exports = {
     saveStore();
     return newExp;
   },
+  updateExpense: (id, updateData) => {
+    const idx = store.expenses.findIndex(e => String(e._id) === String(id));
+    if (idx > -1) {
+      store.expenses[idx] = {
+        ...store.expenses[idx],
+        ...updateData,
+        updatedAt: new Date().toISOString()
+      };
+      saveStore();
+      return store.expenses[idx];
+    }
+    return null;
+  },
   deleteExpense: (id) => {
     const idx = store.expenses.findIndex(e => String(e._id) === String(id));
     if (idx > -1) {

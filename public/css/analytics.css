@@ -469,3 +469,83 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Raw Material Intelligence & Historical Spending Styles */
+.month-trends-ribbon::-webkit-scrollbar {
+  height: 6px;
+}
+.month-trends-ribbon::-webkit-scrollbar-thumb {
+  background: rgba(201, 168, 106, 0.4);
+  border-radius: 4px;
+}
+.month-trend-chip {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  background: rgba(10, 22, 38, 0.6);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.month-trend-chip:hover {
+  background: rgba(201, 168, 106, 0.15);
+  border-color: var(--color-gold);
+}
+.month-trend-chip.active {
+  background: linear-gradient(135deg, rgba(201, 168, 106, 0.3), rgba(238, 108, 77, 0.2));
+  border-color: var(--color-gold);
+  box-shadow: 0 0 10px rgba(201, 168, 106, 0.3);
+}
+.month-trend-label {
+  font-size: 0.72rem;
+  color: var(--color-foam);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.month-trend-val {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--color-gold);
+  margin-top: 0.15rem;
+}
+.material-prog-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 0.3rem;
+}
+.material-prog-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.item-spend-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.45rem 0.6rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  border-left: 3px solid var(--color-gold);
+}
+.item-spend-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--color-sand);
+}
+.item-spend-sub {
+  font-size: 0.72rem;
+  color: var(--color-foam);
+  opacity: 0.8;
+}
+.item-spend-amount {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #EE6C4D;
+}
+

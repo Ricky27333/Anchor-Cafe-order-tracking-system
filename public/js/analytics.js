@@ -12,6 +12,22 @@
 document.addEventListener('DOMContentLoaded', () => {
   const socket = typeof io !== 'undefined' ? io() : null;
 
+  // DOM Elements - Raw Material Intelligence & Historical Ledger
+  const materialMonthTrendsRibbon = document.getElementById('materialMonthTrendsRibbon');
+  const labelCurrentMonthCategorySpend = document.getElementById('labelCurrentMonthCategorySpend');
+  const materialCategoryProgressList = document.getElementById('materialCategoryProgressList');
+  const materialItemizedSummaryList = document.getElementById('materialItemizedSummaryList');
+  const inputSearchRawMaterial = document.getElementById('inputSearchRawMaterial');
+  const btnScopeSelectedMonth = document.getElementById('btnScopeSelectedMonth');
+  const btnScopeAllHistory = document.getElementById('btnScopeAllHistory');
+  const countSelectedMonthExp = document.getElementById('countSelectedMonthExp');
+  const countAllHistoryExp = document.getElementById('countAllHistoryExp');
+
+  let rawMaterialScope = 'month'; // 'month' or 'all'
+  let rawMaterialSearchQuery = '';
+  let allHistoricalExpenses = [];
+  let cachedRawIntelligence = null;
+
   // DOM Elements - Decision Banner & Stats
   const decisionBadgePill = document.getElementById('decisionBadgePill');
   const decisionText = document.getElementById('decisionText');
@@ -361,7 +377,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const res = await fetch(`/api/reports/monthly?year=2026&month=${month}`);
+      const now = new Date();
+    const year = 2026;
+    fetchRawMaterialIntelligence(year, parseInt(month, 10));
+    const res = await fetch(`/api/reports/monthly?year=${year}&month=${month}`);
       const data = await res.json();
       if (data.success && data.analytics) {
         const a = data.analytics;
@@ -445,15 +464,143 @@ document.addEventListener('DOMContentLoaded', () => {
     kpiMonthNetSub.textContent = `Net Profit Margin: ${fin.monthlyMarginPct || 0}%`;
   }
 
+
+  // ==========================================================================
+  // Raw Material Intelligence & Historical Ledger Helpers
+  // ==========================================================================
+  async function fetchRawMaterialIntelligence(year, month) {
+    try {
+      const res = await fetch(`/api/expenses/intelligence?year=${year}&month=${month}`);
+      const data = await res.json();
+      if (data.success) {
+        cachedRawIntelligence = data;
+        allHistoricalExpenses = data.allPurchases || [];
+        
+        if (countSelectedMonthExp) countSelectedMonthExp.textContent = data.summary?.purchaseCount || 0;
+        if (countAllHistoryExp) countAllHistoryExp.textContent = data.allPurchasesCount || 0;
+        if (labelCurrentMonthCategorySpend) {
+          labelCurrentMonthCategorySpend.textContent = `₹${(data.summary?.totalSelectedMonthSpend || 0).toLocaleString()} Total`;
+        }
+
+        renderMaterialMonthTrendsRibbon(data.monthlyTrends || [], year, month);
+        renderMaterialCategoryProgress(data.summary?.categoryBreakdown || {}, data.summary?.totalSelectedMonthSpend || 0);
+        renderMaterialItemizedSummary(data.summary?.materialBreakdown || []);
+        renderRawMaterialExpenses();
+      }
+    } catch (e) {
+      console.warn('Could not load raw material intelligence:', e);
+    }
+  }
+
+  function renderMaterialMonthTrendsRibbon(trends = [], currentYear, currentMonth) {
+    if (!materialMonthTrendsRibbon) return;
+    materialMonthTrendsRibbon.innerHTML = '';
+
+    trends.forEach(t => {
+      const isCurrent = t.year === currentYear && t.month === currentMonth;
+      const chip = document.createElement('div');
+      chip.className = `month-trend-chip ${isCurrent ? 'active' : ''}`;
+      chip.title = `${t.label}: ₹${t.totalSpend.toLocaleString()} (${t.purchaseCount} purchases)`;
+      chip.innerHTML = `
+        <span class="month-trend-label">${t.label}</span>
+        <span class="month-trend-val">${t.totalSpend > 0 ? `₹${t.totalSpend >= 1000 ? Math.round(t.totalSpend/1000) + 'k' : t.totalSpend}` : '₹0'}</span>
+      `;
+
+      chip.addEventListener('click', () => {
+        if (selectMonth) {
+          selectMonth.value = String(t.month);
+          fetchMonthlyAnalytics();
+        }
+      });
+      materialMonthTrendsRibbon.appendChild(chip);
+    });
+  }
+
+  function renderMaterialCategoryProgress(categories = {}, totalSpend = 0) {
+    if (!materialCategoryProgressList) return;
+    materialCategoryProgressList.innerHTML = '';
+
+    const catDefinitions = [
+      { key: 'MILK_DAIRY', label: '🥛 Milk & Dairy', color: '#48CAE4' },
+      { key: 'ICE_GAS', label: '🧊 Ice & Gas', color: '#90E0EF' },
+      { key: 'BEVERAGE_STOCK', label: '☕ Coffee & Syrups', color: '#C9A86A' },
+      { key: 'PACKAGING', label: '📦 Packaging & Cups', color: '#EE6C4D' },
+      { key: 'GROCERIES_PRODUCE', label: '🛒 Groceries & Produce', color: '#52B788' },
+      { key: 'MISC_EXPENSE', label: '🔧 Misc & Repairs', color: '#CBD5E1' }
+    ];
+
+    if (totalSpend === 0) {
+      materialCategoryProgressList.innerHTML = `
+        <div style="text-align: center; color: var(--color-foam); opacity: 0.7; font-size: 0.85rem; padding: 1rem 0;">
+          No category spending recorded for this month.
+        </div>
+      `;
+      return;
+    }
+
+    catDefinitions.forEach(cat => {
+      const amount = categories[cat.key] || 0;
+      const pct = totalSpend > 0 ? Math.round((amount / totalSpend) * 100) : 0;
+      if (amount <= 0 && pct === 0) return; // Only show active categories
+
+      const item = document.createElement('div');
+      item.innerHTML = `
+        <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700;">
+          <span style="color: var(--color-sand);">${cat.label}</span>
+          <span style="color: ${cat.color};">₹${amount.toLocaleString()} <small style="opacity: 0.7;">(${pct}%)</small></span>
+        </div>
+        <div class="material-prog-bar-wrap">
+          <div class="material-prog-bar-fill" style="width: ${pct}%; background: ${cat.color};"></div>
+        </div>
+      `;
+      materialCategoryProgressList.appendChild(item);
+    });
+  }
+
+  function renderMaterialItemizedSummary(materials = []) {
+    if (!materialItemizedSummaryList) return;
+    materialItemizedSummaryList.innerHTML = '';
+
+    if (!materials || materials.length === 0) {
+      materialItemizedSummaryList.innerHTML = `
+        <div style="text-align: center; color: var(--color-foam); opacity: 0.7; font-size: 0.85rem; padding: 1rem 0;">
+          No individual raw materials logged for this month yet.
+        </div>
+      `;
+      return;
+    }
+
+    materials.slice(0, 8).forEach(mat => {
+      const row = document.createElement('div');
+      row.className = 'item-spend-row';
+      const catClass = getCatBadgeClass(mat.category);
+      const catName = formatCatName(mat.category);
+      row.innerHTML = `
+        <div>
+          <div class="item-spend-title">${escapeHtml(mat.title)}</div>
+          <div class="item-spend-sub">${mat.purchaseCount} purchase${mat.purchaseCount > 1 ? 's' : ''} &bull; <span class="cat-tag ${catClass}" style="padding: 1px 4px; font-size: 0.65rem;">${catName}</span></div>
+        </div>
+        <div class="item-spend-amount">₹${mat.totalAmount.toLocaleString()}</div>
+      `;
+      materialItemizedSummaryList.appendChild(row);
+    });
+  }
+
   // --- Render Raw Material Expenses Table ---
   function renderRawMaterialExpenses() {
     if (!rawMaterialTableBody) return;
     rawMaterialTableBody.innerHTML = '';
 
-    let filtered = allRawExpenses;
+    // Choose base dataset according to user's selected scope
+    let baseList = (rawMaterialScope === 'all') ? allHistoricalExpenses : allRawExpenses;
+    let filtered = [...baseList];
+
+    // Filter by category
     if (activeExpenseCatFilter !== 'all') {
       filtered = filtered.filter(e => e.category === activeExpenseCatFilter);
     }
+
+    // Filter by specific date
     if (activeExpenseDateFilter) {
       filtered = filtered.filter(e => {
         const dStr = new Date(e.expenseDate).toISOString().split('T')[0];
@@ -461,19 +608,32 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Filter by search query (live keyword search across item title and notes)
+    if (rawMaterialSearchQuery && rawMaterialSearchQuery.trim()) {
+      const q = rawMaterialSearchQuery.trim().toLowerCase();
+      filtered = filtered.filter(e => {
+        const titleMatch = (e.title || '').toLowerCase().includes(q);
+        const notesMatch = (e.notes || '').toLowerCase().includes(q);
+        const catMatch = (e.category || '').toLowerCase().includes(q);
+        return titleMatch || notesMatch || catMatch;
+      });
+    }
+
     const totalFiltered = filtered.reduce((s, e) => s + (e.amount || 0), 0);
     if (filteredExpenseTotal) {
-      filteredExpenseTotal.textContent = `₹${totalFiltered.toLocaleString()} (${filtered.length} entries)`;
+      filteredExpenseTotal.textContent = `₹${totalFiltered.toLocaleString()} (${filtered.length} ${rawMaterialScope === 'all' ? 'all-time' : 'monthly'} entries)`;
     }
     if (countAllExp) {
-      countAllExp.textContent = allRawExpenses.length;
+      countAllExp.textContent = baseList.length;
     }
+    if (countSelectedMonthExp) countSelectedMonthExp.textContent = allRawExpenses.length;
+    if (countAllHistoryExp) countAllHistoryExp.textContent = allHistoricalExpenses.length;
 
     if (filtered.length === 0) {
       rawMaterialTableBody.innerHTML = `
         <tr>
           <td colspan="7" style="text-align: center; padding: 2rem; color: var(--color-foam);">
-            No raw material purchases found ${activeExpenseCatFilter !== 'all' ? `for "${activeExpenseCatFilter}"` : ''} ${activeExpenseDateFilter ? `on ${activeExpenseDateFilter}` : 'in this period'}.
+            No raw material purchases found ${rawMaterialSearchQuery ? `matching "${escapeHtml(rawMaterialSearchQuery)}"` : ''} ${activeExpenseCatFilter !== 'all' ? `for "${activeExpenseCatFilter}"` : ''} ${activeExpenseDateFilter ? `on ${activeExpenseDateFilter}` : (rawMaterialScope === 'all' ? 'in full history' : 'in this month')}.
             <div style="margin-top: 0.5rem;">
               <button class="btn-gold" onclick="document.getElementById('btnOpenAddExpenseModal').click()" style="padding: 0.35rem 0.8rem; font-size: 0.8rem;">➕ Log First Purchase</button>
             </div>
@@ -492,13 +652,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td style="font-weight: 600; color: var(--color-sand);">${dateFormatted}</td>
+        <td style="font-weight: 600; color: var(--color-sand); white-space: nowrap;">${dateFormatted}</td>
         <td>
-          <strong style="color: var(--color-sand);">${escapeHtml(exp.title)}</strong>
+          <strong style="color: var(--color-sand); font-size: 0.92rem;">${escapeHtml(exp.title)}</strong>
         </td>
         <td><span class="cat-tag ${catClass}">${catName}</span></td>
-        <td style="font-weight: 800; color: #EE6C4D; font-size: 1.05rem;">₹${(exp.amount || 0).toLocaleString()}</td>
-        <td style="font-size: 0.82rem; color: var(--color-foam);">${deductName}</td>
+        <td style="font-weight: 800; color: #EE6C4D; font-size: 1.05rem; white-space: nowrap;">₹${(exp.amount || 0).toLocaleString()}</td>
+        <td style="font-size: 0.82rem; color: var(--color-foam); white-space: nowrap;">${deductName}</td>
         <td style="font-size: 0.82rem; color: var(--color-sand-muted);">${escapeHtml(exp.notes || '—')}</td>
         <td style="text-align: right; white-space: nowrap;">
           <button class="btn-table-action btn-edit-exp" data-id="${exp._id}" title="Edit purchase amount, title or date">✏️ Edit</button>
@@ -1066,6 +1226,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (selectMonth) {
     selectMonth.addEventListener('change', fetchMonthlyAnalytics);
+  }
+
+  
+  // --- Raw Material Search & Scope Event Listeners ---
+  if (inputSearchRawMaterial) {
+    inputSearchRawMaterial.addEventListener('input', (e) => {
+      rawMaterialSearchQuery = e.target.value;
+      renderRawMaterialExpenses();
+    });
+  }
+
+  if (btnScopeSelectedMonth) {
+    btnScopeSelectedMonth.addEventListener('click', () => {
+      rawMaterialScope = 'month';
+      btnScopeSelectedMonth.classList.add('active');
+      if (btnScopeAllHistory) btnScopeAllHistory.classList.remove('active');
+      renderRawMaterialExpenses();
+    });
+  }
+
+  if (btnScopeAllHistory) {
+    btnScopeAllHistory.addEventListener('click', () => {
+      rawMaterialScope = 'all';
+      btnScopeAllHistory.classList.add('active');
+      if (btnScopeSelectedMonth) btnScopeSelectedMonth.classList.remove('active');
+      renderRawMaterialExpenses();
+    });
   }
 
   // --- Real-time WebSockets ---

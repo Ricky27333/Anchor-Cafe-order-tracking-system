@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   recordExpense,
   getExpenses,
+  getRawMaterialIntelligence,
   getSalesVsExpensesSummary,
   updateExpense,
   deleteExpense
@@ -10,6 +11,7 @@ const {
 
 router.post('/', recordExpense);
 router.get('/', getExpenses);
+router.get('/intelligence', getRawMaterialIntelligence);
 router.get('/summary', getSalesVsExpensesSummary);
 router.put('/:id', updateExpense);
 router.delete('/:id', deleteExpense);

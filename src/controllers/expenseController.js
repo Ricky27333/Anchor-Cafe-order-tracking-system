@@ -105,11 +105,11 @@ async function recordExpense(req, res) {
 }
 
 /**
- * Get list of recorded expenses (filterable by date=today, yesterday, all)
+ * Get list of recorded expenses (filterable by date=today, yesterday, all, year, month, category, search)
  */
 async function getExpenses(req, res) {
   try {
-    const { filter = 'all' } = req.query;
+    const { filter = 'all', month, year, category, search } = req.query;
     let expenses = [];
 
     if (mongoose.connection && mongoose.connection.readyState === 1) {
@@ -121,13 +121,37 @@ async function getExpenses(req, res) {
         } else if (filter === 'yesterday') {
           const { startOfDay, endOfDay } = getDayRange(-1);
           query.expenseDate = { $gte: startOfDay, $lte: endOfDay };
+        } else if (year && month) {
+          const y = parseInt(year, 10);
+          const m = parseInt(month, 10);
+          const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
+          const end = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+          query.expenseDate = { $gte: start, $lte: end };
         }
+
+        if (category && category !== 'all') {
+          query.category = category;
+        }
+
+        if (search && search.trim()) {
+          const s = search.trim();
+          query.$or = [
+            { title: { $regex: s, $options: 'i' } },
+            { notes: { $regex: s, $options: 'i' } }
+          ];
+        }
+
         expenses = await Expense.find(query).sort({ expenseDate: -1, createdAt: -1 });
       } catch (e) {
-        expenses = inMemoryExpenses;
+        expenses = localDataStore.getExpenses() || [];
       }
     } else {
-      expenses = inMemoryExpenses;
+      expenses = localDataStore.getExpenses() || [];
+    }
+
+    if (!Array.isArray(expenses) || expenses.length === 0) {
+      const fallback = localDataStore.getExpenses() || [];
+      if (fallback.length > 0) expenses = fallback;
     }
 
     res.json({
@@ -136,11 +160,145 @@ async function getExpenses(req, res) {
       expenses
     });
   } catch (error) {
+    const fallback = localDataStore.getExpenses() || [];
     res.json({
       success: true,
-      count: inMemoryExpenses.length,
-      expenses: inMemoryExpenses
+      count: fallback.length,
+      expenses: fallback
     });
+  }
+}
+
+/**
+ * Complete Raw Material Spending Intelligence across Months
+ * Tracks:
+ * 1. Which month spent how much money on what raw materials
+ * 2. Grouped spend by raw material item name (e.g. Milk 5L, Ice, Coffee beans)
+ * 3. Complete historical purchase ledger with search & category breakdowns
+ * 4. Month-over-month expenditure trends (past 12 months)
+ */
+async function getRawMaterialIntelligence(req, res) {
+  try {
+    const now = new Date();
+    const year = parseInt(req.query.year, 10) || now.getFullYear();
+    const month = parseInt(req.query.month, 10) || (now.getMonth() + 1);
+
+    let allExpenses = [];
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        allExpenses = await Expense.find({}).sort({ expenseDate: -1, createdAt: -1 });
+      } catch (e) {
+        allExpenses = localDataStore.getExpenses() || [];
+      }
+    } else {
+      allExpenses = localDataStore.getExpenses() || [];
+    }
+
+    if (!allExpenses || allExpenses.length === 0) {
+      allExpenses = localDataStore.getExpenses() || [];
+    }
+
+    const selectedMonthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const selectedMonthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+    const selectedMonthExpenses = allExpenses.filter(e => {
+      const d = new Date(e.expenseDate);
+      return d >= selectedMonthStart && d <= selectedMonthEnd;
+    });
+
+    const totalSelectedMonthSpend = selectedMonthExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+    const categoryBreakdown = {};
+    selectedMonthExpenses.forEach(e => {
+      const cat = e.category || 'MISC_EXPENSE';
+      categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + (e.amount || 0);
+    });
+
+    const materialMap = {};
+    selectedMonthExpenses.forEach(e => {
+      const cleanTitle = (e.title || 'Untitled Material').trim();
+      const normKey = cleanTitle.toLowerCase();
+      if (!materialMap[normKey]) {
+        materialMap[normKey] = {
+          title: cleanTitle,
+          category: e.category,
+          totalAmount: 0,
+          purchaseCount: 0,
+          latestDate: e.expenseDate,
+          supplierNotes: e.notes || '',
+          deductedFrom: e.deductedFrom
+        };
+      }
+      materialMap[normKey].totalAmount += (e.amount || 0);
+      materialMap[normKey].purchaseCount += 1;
+      if (new Date(e.expenseDate) > new Date(materialMap[normKey].latestDate)) {
+        materialMap[normKey].latestDate = e.expenseDate;
+      }
+    });
+
+    const materialBreakdown = Object.values(materialMap).sort((a, b) => b.totalAmount - a.totalAmount);
+
+    const monthlyTrendMap = {};
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(Date.UTC(year, month - 1 - i, 1));
+      const y = d.getUTCFullYear();
+      const m = d.getUTCMonth() + 1;
+      const key = y + '-' + String(m).padStart(2, '0');
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+      monthlyTrendMap[key] = {
+        year: y,
+        month: m,
+        key,
+        label,
+        totalSpend: 0,
+        purchaseCount: 0,
+        categories: {}
+      };
+    }
+
+    allExpenses.forEach(e => {
+      const d = new Date(e.expenseDate);
+      const y = d.getUTCFullYear();
+      const m = d.getUTCMonth() + 1;
+      const key = y + '-' + String(m).padStart(2, '0');
+      if (monthlyTrendMap[key]) {
+        monthlyTrendMap[key].totalSpend += (e.amount || 0);
+        monthlyTrendMap[key].purchaseCount += 1;
+        const cat = e.category || 'MISC_EXPENSE';
+        monthlyTrendMap[key].categories[cat] = (monthlyTrendMap[key].categories[cat] || 0) + (e.amount || 0);
+      }
+    });
+
+    const monthlyTrends = Object.values(monthlyTrendMap).reverse();
+
+    const allPurchases = allExpenses.map(e => ({
+      _id: e._id,
+      title: e.title,
+      category: e.category,
+      amount: e.amount,
+      deductedFrom: e.deductedFrom,
+      expenseDate: e.expenseDate,
+      notes: e.notes || '',
+      recordedBy: e.recordedBy || 'Counter 1'
+    }));
+
+    res.json({
+      success: true,
+      selectedYear: year,
+      selectedMonth: month,
+      summary: {
+        totalSelectedMonthSpend,
+        purchaseCount: selectedMonthExpenses.length,
+        categoryBreakdown,
+        materialBreakdown
+      },
+      monthlyTrends,
+      allPurchasesCount: allPurchases.length,
+      allPurchases
+    });
+  } catch (error) {
+    console.error('Error getting raw material intelligence:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 }
 
@@ -237,6 +395,7 @@ async function deleteExpense(req, res) {
   try {
     const { id } = req.params;
     const deleted = await Expense.findByIdAndDelete(id);
+    localDataStore.deleteExpense(id);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Expense entry not found' });
     }
@@ -273,6 +432,7 @@ async function updateExpense(req, res) {
     if (notes !== undefined) updateData.notes = notes.trim();
 
     const updated = await Expense.findByIdAndUpdate(id, updateData, { new: true });
+    localDataStore.updateExpense(id, updateData);
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Expense entry not found' });
     }
@@ -296,6 +456,7 @@ async function updateExpense(req, res) {
 module.exports = {
   recordExpense,
   getExpenses,
+  getRawMaterialIntelligence,
   getSalesVsExpensesSummary,
   updateExpense,
   deleteExpense
