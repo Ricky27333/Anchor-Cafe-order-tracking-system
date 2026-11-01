@@ -4,10 +4,12 @@ const {
   getMonthlyReport,
   getDailySummary,
   closeDayReport,
+  exportMonthlyCsv,
   resetRecords
 } = require('../controllers/reportController');
 
 router.get('/monthly', getMonthlyReport);
+router.get('/export/monthly-csv', exportMonthlyCsv);
 router.get('/daily/summary', getDailySummary);
 router.post('/daily/close-day', closeDayReport);
 router.post('/reset-records', resetRecords);

@@ -1228,6 +1228,17 @@ document.addEventListener('DOMContentLoaded', () => {
     selectMonth.addEventListener('change', fetchMonthlyAnalytics);
   }
 
+  // --- Google Sheets / Excel Monthly Export Listener ---
+  const btnDownloadMonthlySheet = document.getElementById('btnDownloadMonthlySheet');
+  if (btnDownloadMonthlySheet) {
+    btnDownloadMonthlySheet.addEventListener('click', () => {
+      const month = selectMonth ? selectMonth.value : (new Date().getMonth() + 1);
+      const year = 2026;
+      showToast('📊 Downloading Monthly Google Sheet...', 'info');
+      window.location.href = `/api/reports/export/monthly-csv?year=${year}&month=${month}`;
+    });
+  }
+
   
   // --- Raw Material Search & Scope Event Listeners ---
   if (inputSearchRawMaterial) {

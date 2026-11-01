@@ -2,6 +2,8 @@ const Order = require('../models/Order');
 const Payment = require('../models/Payment');
 const DailyReport = require('../models/DailyReport');
 const Expense = require('../models/Expense');
+const mongoose = require('mongoose');
+const localDataStore = require('../services/localDataStore');
 
 /**
  * Generates monthly revenue, raw material expense tracking, and day-by-day decision breakdown
@@ -14,8 +16,14 @@ async function getMonthlyAnalyticsData(year, month) {
   const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // 1. Order Aggregation Pipeline
-  const monthlyReport = await Order.aggregate([
+  let baseReport = {};
+  let monthlyExpenses = [];
+
+  const isDbConnected = mongoose.connection && mongoose.connection.readyState === 1;
+
+  if (isDbConnected) {
+    try {
+      const monthlyReport = await Order.aggregate([
     {
       $match: {
         createdAt: { $gte: startDate, $lte: endDate },
@@ -97,12 +105,81 @@ async function getMonthlyAnalyticsData(year, month) {
     }
   ]);
 
-  const baseReport = monthlyReport[0] || {};
+      baseReport = monthlyReport[0] || {};
+      monthlyExpenses = await Expense.find({
+        expenseDate: { $gte: startDate, $lte: endDate }
+      }).sort({ expenseDate: -1, createdAt: -1 });
+    } catch (dbErr) {
+      console.warn('MongoDB aggregate query failed, using local store fallback:', dbErr.message);
+    }
+  }
 
-  // 2. Query Raw Material & Store Expenses for this month
-  const monthlyExpenses = await Expense.find({
-    expenseDate: { $gte: startDate, $lte: endDate }
-  }).sort({ expenseDate: -1, createdAt: -1 });
+  // High-availability fallback from localDataStore
+  if (!baseReport.summaryTotals || baseReport.summaryTotals.length === 0) {
+    const allStoreOrders = localDataStore.getOrders() || [];
+    const monthOrders = allStoreOrders.filter(o => {
+      const d = new Date(o.createdAt);
+      return d >= startDate && d <= endDate && o.orderStatus !== 'CANCELLED';
+    });
+    
+    let totalRev = 0;
+    let totalItems = 0;
+    const dailyMap = {};
+    const pBreakdown = {};
+    const catMap = {};
+    const bestsellersMap = {};
+
+    monthOrders.forEach(o => {
+      const rev = o.finalTotalAmount || 0;
+      totalRev += rev;
+      totalItems += (o.totalItemCount || 0);
+
+      const dStr = new Date(o.createdAt).toISOString().split('T')[0];
+      if (!dailyMap[dStr]) dailyMap[dStr] = { _id: dStr, dailyRevenue: 0, dailyOrders: 0 };
+      dailyMap[dStr].dailyRevenue += rev;
+      dailyMap[dStr].dailyOrders += 1;
+
+      const pm = o.paymentMethod || 'OTHER';
+      if (!pBreakdown[pm]) pBreakdown[pm] = { _id: pm, methodRevenue: 0, transactionCount: 0 };
+      pBreakdown[pm].methodRevenue += rev;
+      pBreakdown[pm].transactionCount += 1;
+
+      (o.items || []).forEach(it => {
+        const cat = it.category || 'other';
+        if (!catMap[cat]) catMap[cat] = { _id: cat, revenue: 0, count: 0 };
+        catMap[cat].revenue += (it.subtotal || 0);
+        catMap[cat].count += (it.quantity || 1);
+
+        const title = it.title || 'Item';
+        if (!bestsellersMap[title]) bestsellersMap[title] = { _id: title, quantitySold: 0, itemRevenue: 0 };
+        bestsellersMap[title].quantitySold += (it.quantity || 1);
+        bestsellersMap[title].itemRevenue += (it.subtotal || 0);
+      });
+    });
+
+    baseReport = {
+      summaryTotals: [{
+        _id: null,
+        totalRevenue: totalRev,
+        totalOrders: monthOrders.length,
+        averageOrderValue: monthOrders.length > 0 ? Math.round(totalRev / monthOrders.length) : 0,
+        totalItemsSold: totalItems
+      }],
+      dailyTrends: Object.values(dailyMap).sort((a,b) => a._id.localeCompare(b._id)),
+      paymentBreakdown: Object.values(pBreakdown),
+      topBestsellers: Object.values(bestsellersMap).sort((a,b) => b.quantitySold - a.quantitySold).slice(0, 10),
+      categoryBreakdown: Object.values(catMap),
+      tableBreakdown: []
+    };
+  }
+
+  if (!monthlyExpenses || monthlyExpenses.length === 0) {
+    const allStoreExpenses = localDataStore.getExpenses() || [];
+    monthlyExpenses = allStoreExpenses.filter(e => {
+      const d = new Date(e.expenseDate);
+      return d >= startDate && d <= endDate;
+    });
+  }
 
   const dailyExpensesMap = {};
   let totalMonthlyExpenses = 0;
@@ -477,8 +554,164 @@ async function resetRecords(req, res) {
   }
 }
 
+
+/**
+ * Controller: GET /api/reports/export/monthly-csv?year=2026&month=11
+ * Generates an executive, RFC 4180 compliant CSV document with UTF-8 BOM
+ * that opens directly in Google Sheets / Microsoft Excel with all monthly
+ * revenue, day-by-day calculations, payment splits, and raw material procurement history.
+ */
+async function exportMonthlyCsv(req, res) {
+  try {
+    const now = new Date();
+    const year = parseInt(req.query.year, 10) || now.getFullYear();
+    const month = parseInt(req.query.month, 10) || (now.getMonth() + 1);
+
+    const data = await getMonthlyAnalyticsData(year, month);
+    const fin = data.monthlyFinancials || {};
+    const monthName = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+    function esc(val) {
+      if (val === null || val === undefined) return '""';
+      const str = String(val);
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+
+    const lines = [];
+
+    // Title Block
+    lines.push([esc('ANCHOR CAFE - COASTAL ORDER TRACKING & FINANCIAL SYSTEM'), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc('RAMAPURAM BEACH, CHIRALA (CHORAMANDAL COAST)'), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc(`MONTHLY EXECUTIVE REVENUE & PROCUREMENT REPORT: ${monthName.toUpperCase()}`), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc(`Generated On: ${new Date().toLocaleString('en-IN')}`), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc('Database Sources: MongoDB Operational Core + Oracle XE 21c (ANCHOR_TRACK Schema)'), esc(''), esc(''), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push('');
+
+    // Section 1: Executive Summary P&L
+    lines.push([esc('=============================='), esc('=============================='), esc(''), esc('')].join(','));
+    lines.push([esc('1. MONTHLY EXECUTIVE P&L FINANCIAL SUMMARY'), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc('=============================='), esc('=============================='), esc(''), esc('')].join(','));
+    lines.push([esc('Financial Metric'), esc('Amount (INR) / Value'), esc('Notes / Breakdown')].join(','));
+    lines.push([esc('Total Gross Customer Sales'), esc(fin.totalGrossSales || 0), esc('Total billings across all completed orders')].join(','));
+    lines.push([esc('Total Raw Material Spend'), esc(fin.totalExpenses || 0), esc('Procurement for Milk, Coffee, Ice, Packaging & Produce')].join(','));
+    lines.push([esc('Net Operating Cash Profit'), esc(fin.netOperatingProfit || 0), esc('Gross Sales minus Raw Material Expenditures')].join(','));
+    lines.push([esc('Operating Profit Margin (%)'), esc(`${fin.monthlyMarginPct || 0}%`), esc(fin.verdict || 'BREAK_EVEN')].join(','));
+    lines.push([esc('Total Customer Orders Placed'), esc(data.summaryTotals?.[0]?.totalOrders || 0), esc('Completed and settled order count')].join(','));
+    lines.push([esc('Total Cafe Offerings Sold'), esc(data.summaryTotals?.[0]?.totalItemsSold || 0), esc('Cumulative units prepared and served')].join(','));
+    lines.push([esc('Average Order Value (AOV)'), esc(Math.round(data.summaryTotals?.[0]?.averageOrderValue || 0)), esc('Average spend per customer table')].join(','));
+    lines.push([esc('Daily Raw Material Burn Rate'), esc(fin.avgDailyExpense || 0), esc('Average procurement spend per day')].join(','));
+    lines.push('');
+
+    // Section 2: Payment Settlement Breakdown
+    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('')].join(','));
+    lines.push([esc('2. PAYMENT METHOD RECONCILIATION (UPI vs CASH)'), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('')].join(','));
+    lines.push([esc('Payment Mode'), esc('Total Settled (INR)'), esc('Transactions Count'), esc('% of Total Revenue')].join(','));
+    const totalRev = fin.totalGrossSales || 1;
+    (data.paymentBreakdown || []).forEach(p => {
+      const pct = Math.round(((p.methodRevenue || 0) / totalRev) * 100);
+      lines.push([esc(p._id || 'OTHER'), esc(p.methodRevenue || 0), esc(p.transactionCount || 0), esc(`${pct}%`)].join(','));
+    });
+    lines.push('');
+
+    // Section 3: Day-by-Day Financial Tracking Ledger
+    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')].join(','));
+    lines.push([esc('3. DAY-BY-DAY FINANCIAL & OPERATING LEDGER'), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')].join(','));
+    lines.push([
+      esc('Day'),
+      esc('Date'),
+      esc('Weekday'),
+      esc('Gross Sales (INR)'),
+      esc('Raw Material Spend (INR)'),
+      esc('Net Daily Profit (INR)'),
+      esc('Margin (%)'),
+      esc('Orders Count'),
+      esc('Material Buys Count'),
+      esc('Day Operating Status'),
+      esc('Managerial Decision & Notes')
+    ].join(','));
+
+    (data.dailyLedger || []).forEach(d => {
+      lines.push([
+        esc(d.day),
+        esc(d.date),
+        esc(d.dayName),
+        esc(d.grossSales || 0),
+        esc(d.rawMaterialExpenses || 0),
+        esc(d.netProfit || 0),
+        esc(`${d.marginPct || 0}%`),
+        esc(d.ordersCount || 0),
+        esc(d.expensesCount || 0),
+        esc(d.status || 'IDLE'),
+        esc(d.decision || 'No Activity')
+      ].join(','));
+    });
+    lines.push('');
+
+    // Section 4: Itemized Raw Material Procurement History
+    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')].join(','));
+    lines.push([esc('4. ITEMIZED RAW MATERIAL PROCUREMENT & EXPENSE LEDGER'), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc('=============================='), esc('=============================='), esc('=============================='), esc('==============================')].join(','));
+    lines.push([
+      esc('Purchase Date'),
+      esc('Raw Material / Item Description'),
+      esc('Category'),
+      esc('Cost Amount (INR)'),
+      esc('Payment Source / Deducted From'),
+      esc('Supplier / Purchase Notes'),
+      esc('Recorded By')
+    ].join(','));
+
+    (data.rawMaterialExpenses || []).forEach(e => {
+      const dStr = new Date(e.expenseDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      lines.push([
+        esc(dStr),
+        esc(e.title || 'Untitled Material'),
+        esc(e.category || 'MISC_EXPENSE'),
+        esc(e.amount || 0),
+        esc(e.deductedFrom || 'TODAYS_SALES'),
+        esc(e.notes || '—'),
+        esc(e.recordedBy || 'Counter 1')
+      ].join(','));
+    });
+    lines.push('');
+
+    // Section 5: Category-Wise Sales Velocity
+    lines.push([esc('=============================='), esc('=============================='), esc('==============================')].join(','));
+    lines.push([esc('5. CATEGORY-WISE SALES VELOCITY'), esc(''), esc('')].join(','));
+    lines.push([esc('=============================='), esc('=============================='), esc('==============================')].join(','));
+    lines.push([esc('Menu Category'), esc('Units Sold'), esc('Total Revenue (INR)')].join(','));
+    (data.categoryBreakdown || []).forEach(c => {
+      lines.push([esc(c._id || 'Other'), esc(c.count || 0), esc(c.revenue || 0)].join(','));
+    });
+    lines.push('');
+
+    // Section 6: Top 10 Bestsellers
+    lines.push([esc('=============================='), esc('=============================='), esc('==============================')].join(','));
+    lines.push([esc('6. TOP 10 BESTSELLING COASTAL OFFERINGS'), esc(''), esc('')].join(','));
+    lines.push([esc('=============================='), esc('=============================='), esc('==============================')].join(','));
+    lines.push([esc('Item Title'), esc('Units Sold'), esc('Revenue Generated (INR)')].join(','));
+    (data.topBestsellers || []).forEach(b => {
+      lines.push([esc(b._id || 'Unknown'), esc(b.quantitySold || 0), esc(b.itemRevenue || 0)].join(','));
+    });
+
+    const csvContent = '\uFEFF' + lines.join('\r\n');
+    const safeMonthStr = String(month).padStart(2, '0');
+    const filename = `Anchor_Cafe_Monthly_Sheet_${year}_${safeMonthStr}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvContent);
+  } catch (err) {
+    console.error('Error exporting monthly CSV sheet:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 module.exports = {
   getMonthlyReport,
+  exportMonthlyCsv,
   getDailySummary,
   closeDayReport,
   getMonthlyAnalyticsData,
