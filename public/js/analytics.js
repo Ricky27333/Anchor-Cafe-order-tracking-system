@@ -1239,6 +1239,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const btnDownloadMaterialSheet = document.getElementById('btnDownloadMaterialSheet');
+  if (btnDownloadMaterialSheet) {
+    btnDownloadMaterialSheet.addEventListener('click', () => {
+      const month = selectMonth ? selectMonth.value : (new Date().getMonth() + 1);
+      const year = 2026;
+      const scope = rawMaterialScope || 'month';
+      showToast('📥 Downloading Raw Materials Google Sheet...', 'info');
+      window.location.href = `/api/expenses/export/csv?year=${year}&month=${month}&scope=${scope}`;
+    });
+  }
+
   
   // --- Raw Material Search & Scope Event Listeners ---
   if (inputSearchRawMaterial) {

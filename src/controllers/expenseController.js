@@ -453,11 +453,108 @@ async function updateExpense(req, res) {
   }
 }
 
+
+/**
+ * Controller: GET /api/expenses/export/csv?year=2026&month=11&scope=all
+ * Generates an itemized Google Sheets compatible CSV document for raw materials
+ */
+async function exportExpensesCsv(req, res) {
+  try {
+    const { year, month, scope = 'month', category, search } = req.query;
+    let allExpenses = [];
+
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        allExpenses = await Expense.find({}).sort({ expenseDate: -1, createdAt: -1 });
+      } catch (e) {
+        allExpenses = localDataStore.getExpenses() || [];
+      }
+    } else {
+      allExpenses = localDataStore.getExpenses() || [];
+    }
+
+    let filtered = [...allExpenses];
+
+    if (scope === 'month' && year && month) {
+      const y = parseInt(year, 10);
+      const m = parseInt(month, 10);
+      const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
+      const end = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+      filtered = filtered.filter(e => {
+        const d = new Date(e.expenseDate);
+        return d >= start && d <= end;
+      });
+    }
+
+    if (category && category !== 'all') {
+      filtered = filtered.filter(e => e.category === category);
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      filtered = filtered.filter(e => {
+        return (e.title || '').toLowerCase().includes(q) || (e.notes || '').toLowerCase().includes(q);
+      });
+    }
+
+    function esc(val) {
+      if (val === null || val === undefined) return '""';
+      const str = String(val);
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+
+    const lines = [];
+    lines.push([esc('ANCHOR CAFE - RAW MATERIAL & CAFE PROCUREMENT LEDGER'), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc('RAMAPURAM BEACH, CHIRALA (CHORAMANDAL COAST)'), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc(`Owner Account: anchorcafe01@gmail.com | Generated: ${new Date().toLocaleString('en-IN')}`), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push([esc(`Scope: ${scope === 'all' ? 'All-Time Historical Purchases' : `Month: ${month}/${year}`}`), esc(''), esc(''), esc(''), esc(''), esc('')].join(','));
+    lines.push('');
+    lines.push([
+      esc('Purchase Date'),
+      esc('Raw Material Item / Description'),
+      esc('Category'),
+      esc('Amount (INR)'),
+      esc('Payment Source / Deducted From'),
+      esc('Supplier / Purchase Notes'),
+      esc('Logged By')
+    ].join(','));
+
+    let totalAmount = 0;
+    filtered.forEach(e => {
+      totalAmount += (e.amount || 0);
+      const dStr = new Date(e.expenseDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      lines.push([
+        esc(dStr),
+        esc(e.title || 'Untitled Material'),
+        esc(e.category || 'MISC_EXPENSE'),
+        esc(e.amount || 0),
+        esc(e.deductedFrom || 'TODAYS_SALES'),
+        esc(e.notes || '—'),
+        esc(e.recordedBy || 'Counter 1')
+      ].join(','));
+    });
+
+    lines.push('');
+    lines.push([esc('TOTAL EXPENDITURE'), esc(''), esc(''), esc(totalAmount), esc(''), esc(''), esc('')].join(','));
+
+    const csvContent = '\uFEFF' + lines.join('\r\n');
+    const filename = `Anchor_Cafe_Raw_Materials_${scope === 'all' ? 'All_History' : `${year}_${month}`}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvContent);
+  } catch (err) {
+    console.error('Error exporting expenses CSV:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 module.exports = {
   recordExpense,
   getExpenses,
   getRawMaterialIntelligence,
   getSalesVsExpensesSummary,
   updateExpense,
-  deleteExpense
+  deleteExpense,
+  exportExpensesCsv
 };
